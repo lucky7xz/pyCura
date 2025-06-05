@@ -1,0 +1,91 @@
+{
+    "data": { 
+        
+        "BG": {
+        "0": "Not specified",
+        "1": "women",
+        "2": "men"
+
+        },
+        "AG":{
+            "0": "Not specified",
+            "1": "18-30",
+            "2": "31-50",
+            "3": "51-70",
+            "4": ">70"
+        },
+        "HA": {
+        "0": "Not specified",
+        "1": "right",
+        "2": "left"
+        },
+
+        "ED": {
+        "0": "Not specified",
+        "1": "No educational qualification",
+        "2": "Intermediate",
+        "3": "Advanced technical college",
+        "4": "Subject-related",
+        "5": "General qualification",
+        "6": "Bachelor",
+        "7": "Master",
+        "8": "PhD",
+        "9": "Vocational",
+        "10": "Other"
+
+        },
+        "HE": {
+        "0": "Not specified",
+        "1": "Intact",
+        "2": "Impaired without correction",
+        "3": "Impaired with correction"
+        },
+        "SE": {
+        "0": "Not specified",
+        "1": "Impaired with correction",
+        "2": "Impaired without correction"
+        }
+  },
+
+
+    "metadata":{
+
+        "BG":{
+            "Label":"Biological Gender",
+            "Measurement":"Nominal",
+            "Type":"String"
+        },
+        "AG":{
+            "Label":"Age",
+            "Measurement":"Interval",
+            "Type":"String"
+        },
+        "HA":{
+            "Label":"Handness",
+            "Measurement":"Nominal",
+            "Type":"String"
+        },
+        "ED":{
+            "Label":"Education",
+            "Measurement":"Nominal",
+            "Type":"String"
+        },
+        "HE":{
+            "Label":"Hearing",
+            "Measurement":"Nominal",
+            "Type":"String"
+        },
+        "SE":{
+            "Label":"Seeing",
+            "Measurement":"Nominal",
+            "Type":"String"
+        }
+    },
+
+    "version_information":{
+        "pyCura_version":"0.0.3",
+        "pyCura_date":"02-06-2025"
+    }
+
+}
+  
