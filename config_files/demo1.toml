@@ -1,19 +1,29 @@
-project_name = "project_demo1"
-domain_foldername = "demo1_dataset"
-white_list = ["BG", "AG", "HA", "ED", "HE", "SE"]
-select_parser = "zero_parser"
-csv_export_delimiter = ","
-append_new_metadata = true
-sort_white_list = true
+# ===== PROJECT CONFIGURATION =====
 
+# Demo project using sample dataset with 6 columns
+project_name = "project_demo1"  # Used for output folder naming
+domain_foldername = "demo1_dataset"  # Subfolder in data_in/
+white_list = ["BG", "AG", "HA", "ED", "HE", "SE"]  # Only process these columns
+
+
+# ===== PARSER SETTINGS =====
+select_parser = "zero_parser"  # Options: zero_parser, spss_basic, custom_parser
+csv_export_delimiter = ","  # Used for CSV export
+append_new_metadata = true  # Add processing metadata to output
+sort_white_list = true  # Sort columns by white_list order
+
+# Columns to exclude from key exports (e.g., ["internal_id", "temp_col"])
 key_export_ban = []
 
+# ===== PARSING OPTIONS =====
 [parsing_options]
 add_id = true
 
+# ===== OUTPUT FORMATS AND BATCHING =====
 [output_formats_and_batching]
 csv = "monolith"
 
+# ===== CODEBOOK INSPECTIONS =====
 [cb_inspections]
   [cb_inspections.length_map]
   active = true
@@ -27,7 +37,8 @@ csv = "monolith"
   [cb_inspections.char_map-values]
   active = true
 
-[dd_inspections]
+# ===== DOMAIN INSPECTIONS =====
+  [dd_inspections]
   [dd_inspections.char_map]
   active = true
 
@@ -37,8 +48,7 @@ csv = "monolith"
   [dd_inspections.occurrence_map]
   active = true
 
-
-
+# ===== EDITS =====
 [[edits]]
   [edits.apply_token_replace]
   AG-values = [[["18-30", "Young adult"], ["31-50", "Adult"], ["51-70", "Senior adult"], [">70", "Senior"]]]
@@ -46,10 +56,16 @@ csv = "monolith"
 [[edits]]
   [edits.apply_char_replace]
   all_values = [[["a", "@"]]]
+  # all_values, unlike all_keys, targets the values in the codebook 
+  # --> the value is the infromation that is encoded, eg. value "seaseme street" is encoded as "042"
 
 [[edits]]
   [edits.apply_token_replace]
   all_keys = [[[" ", "0"], ["NA", "0"]]]
+  # Note how we can apply multiple edits to multiple columns at once, as well as to the codebook part (!!!)
+
+  # Notice how _replace edits use '[[[ ... ]]]' instead of just '[]'
+  # --> This might change in the future
 
 [[edits]]
   [edits.apply_padding]
@@ -61,4 +77,7 @@ csv = "monolith"
 
 [[edits]]
   [edits.append_column]
+  # Here date is the name of the new column
+  # file_name is the name of the column to use as input
+  # The regex is used to extract the date from the filename
   date = ["file_name", ".*(\\d{4}-\\d{2}-\\d{2}).*"]
