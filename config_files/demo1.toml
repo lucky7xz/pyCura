@@ -1,0 +1,64 @@
+project_name = "project_demo1"
+domain_foldername = "demo1_dataset"
+white_list = ["BG", "AG", "HA", "ED", "HE", "SE"]
+select_parser = "zero_parser"
+csv_export_delimiter = ","
+append_new_metadata = true
+sort_white_list = true
+
+key_export_ban = []
+
+[parsing_options]
+add_id = true
+
+[output_formats_and_batching]
+csv = "monolith"
+
+[cb_inspections]
+  [cb_inspections.length_map]
+  active = true
+
+  [cb_inspections.length_map-values]
+  active = false
+
+  [cb_inspections.char_map]
+  active = true
+
+  [cb_inspections.char_map-values]
+  active = true
+
+[dd_inspections]
+  [dd_inspections.char_map]
+  active = true
+
+  [dd_inspections.length_map]
+  active = true
+
+  [dd_inspections.occurrence_map]
+  active = true
+
+
+
+[[edits]]
+  [edits.apply_token_replace]
+  AG-values = [[["18-30", "Young adult"], ["31-50", "Adult"], ["51-70", "Senior adult"], [">70", "Senior"]]]
+
+[[edits]]
+  [edits.apply_char_replace]
+  all_values = [[["a", "@"]]]
+
+[[edits]]
+  [edits.apply_token_replace]
+  all_keys = [[[" ", "0"], ["NA", "0"]]]
+
+[[edits]]
+  [edits.apply_padding]
+  ED = ["2", "0"]
+
+[[edits]]
+  [edits.apply_case]
+  HA = ["upper"]
+
+[[edits]]
+  [edits.append_column]
+  date = ["file_name", ".*(\\d{4}-\\d{2}-\\d{2}).*"]

@@ -36,7 +36,7 @@ def main():
         return
 
     # CONFIG FILE EXTENSION
-    config_filename = args.config_filename + ".json"
+    config_filename = args.config_filename
 
 
 

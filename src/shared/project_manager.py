@@ -1,4 +1,5 @@
 import json
+import tomllib
 import logging
 from pathlib import Path
 
@@ -203,6 +204,7 @@ class ProjectManager:
                 raise ValueError(f"{key} must be a {type}")
 
         # Check for required keys
+        # TODO: Revise later
         required_keys = {
             "project_name": str,
             "domain_foldername": str,
@@ -227,13 +229,38 @@ class ProjectManager:
 
     def _load_config(self) -> dict[str, any]:
         """Load and parse the configuration file."""
+
+
+        # Check for .toml or .json extension and apply if needed
+        if self.config_path.suffix != ".json" and \
+            self.config_path.suffix != ".toml" and \
+            self.config_path.suffix != ".tml":
+            config_path_toml = self.config_path.with_suffix(".toml")
+            config_path_json = self.config_path.with_suffix(".json")
+
+            # If none exists, raise error
+            if config_path_toml.exists():
+                self.config_path = config_path_toml
+                config_type = "toml"
+            elif config_path_json.exists():
+                self.config_path = config_path_json
+                config_type = "json"
+            else:
+                raise AssertionError(
+                    f"Configuration file not found at {self.config_path}. "
+                )
+
         if not self.config_path.exists():
             raise AssertionError(
                 f"Configuration file not found at {self.config_path}. "
             )
+
         with open(self.config_path, "r", encoding="utf-8") as f:
             try:
-                config = json.load(f)
+                if config_type == "toml":
+                    config = tomllib.loads(f.read())
+                elif config_type == "json":
+                    config = json.load(f)
             except json.JSONDecodeError:
                 raise AssertionError(
                     f"Invalid JSON in configuration file {self.config_path}"
