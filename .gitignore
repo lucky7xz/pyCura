@@ -5,11 +5,18 @@ venv*/
 build/
 dist/
 
+data_in/*
 data_buffer/*
 data_out/*
 config_files/*
 
 workbench.ipynb
+
+!config_files/demo1.json
+!data_in/demo_dataset/
+!requirements.txt
+
+
 
 **/*.db
 **/*.csv
@@ -27,7 +34,3 @@ workbench.ipynb
 **/*.stata
 **/*.dat
 
-!config_files/demo1.*
-!data_in/demo1_dataset/**/*/
-!requirements*
-!data_in/demo1_dataset/**/*

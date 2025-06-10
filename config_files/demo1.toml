@@ -8,11 +8,12 @@ white_list = ["BG", "AG", "HA", "ED", "HE", "SE"]  # Only process these columns
 
 # ===== PARSER SETTINGS =====
 select_parser = "zero_parser"  # Options: zero_parser, spss_basic, custom_parser
-csv_export_delimiter = ","  # Used for CSV export
+csv_export_delimiter = ","  # Used for CSV export for now (!)
 append_new_metadata = true  # Add processing metadata to output
 sort_white_list = true  # Sort columns by white_list order
 
-# Columns to exclude from key exports (e.g., ["internal_id", "temp_col"])
+# Columns to exclude from key exports eg. they may appear in the whitelist
+# But these values are not encoded per se, like Postcode
 key_export_ban = []
 
 # ===== PARSING OPTIONS =====
@@ -25,59 +26,57 @@ csv = "monolith"
 
 # ===== CODEBOOK INSPECTIONS =====
 [cb_inspections]
-  [cb_inspections.length_map]
-  active = true
 
-  [cb_inspections.length_map-values]
-  active = false
-
-  [cb_inspections.char_map]
-  active = true
-
-  [cb_inspections.char_map-values]
-  active = true
+length_map = {active = true}
+length_map-values = {active = false}
+char_map = {active = true}
+char_map-values = {active = true}
 
 # ===== DOMAIN INSPECTIONS =====
-  [dd_inspections]
-  [dd_inspections.char_map]
-  active = true
+[dd_inspections]
 
-  [dd_inspections.length_map]
-  active = true
+char_map = {active = true}
+length_map = {active = true}
+occurrence_map = {active = true}
 
-  [dd_inspections.occurrence_map]
-  active = true
+
 
 # ===== EDITS =====
 [[edits]]
-  [edits.apply_token_replace]
-  AG-values = [[["18-30", "Young adult"], ["31-50", "Adult"], ["51-70", "Senior adult"], [">70", "Senior"]]]
+apply_token_replace = { AG-values = [[["18-30", "Young adult"], ["31-50", "Adult"], ["51-70", "Senior adult"], [">70", "Senior"]]] }
+# --> AG is the column name, but th -values flag targets the values in the codebook
+# --> The encoding for 18-30 is '01', but '01' is now 'Young adult'
+
 
 [[edits]]
-  [edits.apply_char_replace]
-  all_values = [[["a", "@"]]]
+apply_char_replace = { all_values = [[["a", "@"]]] }
   # all_values, unlike all_keys, targets the values in the codebook 
-  # --> the value is the infromation that is encoded, eg. value "seaseme street" is encoded as "042"
+  # --> the value of the all key encoded values is changed
+  # --> Eg.'Seasame Street' is now 'Se@seme Street'
+
 
 [[edits]]
-  [edits.apply_token_replace]
-  all_keys = [[[" ", "0"], ["NA", "0"]]]
-  # Note how we can apply multiple edits to multiple columns at once, as well as to the codebook part (!!!)
+apply_token_replace = { all_keys = [[[" ", "0"], ["NA", "0"]]] }
+  # Note how we can apply multiple edits to multiple columns at once
+  # This is applied to the keys of the codebook as well
+  # --> Eg. both " " and "NA" are replaced with "0"
+  # --> where as 0 is the encoded value for 'Missing'
 
-  # Notice how _replace edits use '[[[ ... ]]]' instead of just '[]'
+  # Notice how _replace-edits use '[[[ ... ]]]' instead of just '[ ]'
   # --> This might change in the future
 
 [[edits]]
-  [edits.apply_padding]
-  ED = ["2", "0"]
+apply_padding = { ED = ["2", "0"] }
+# --> ED is the column name, notive that here we apply to keys, not values
+# --> The padding is applied to the keys in the codebook too
 
 [[edits]]
-  [edits.apply_case]
-  HA = ["upper"]
+apply_case = { HA = ["upper"] }
+# --> HA is the column name, notive that here we apply to keys, not values
+# --> The case is applied to the keys in the codebook
 
 [[edits]]
-  [edits.append_column]
-  # Here date is the name of the new column
-  # file_name is the name of the column to use as input
-  # The regex is used to extract the date from the filename
-  date = ["file_name", ".*(\\d{4}-\\d{2}-\\d{2}).*"]
+append_column = { date = ["file_name", ".*(\\d{4}-\\d{2}-\\d{2}).*"] }
+# --> Here date is the name of the new column
+# --> file_name is the name of the column to use as input
+# --> The regex is used to extract the date from the filename

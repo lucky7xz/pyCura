@@ -339,9 +339,9 @@ Our commitment is to **ensure everyone can use pyCura**—and that everyone who 
 - [ ] Rework cura.py
   - [ ] simplify json synatx
   - [ ] simplify -value routing
-- [ ] Allow for programmatic toml config files
+- [x] Allow for programmatic toml config files
 - [ ] Research out-of-ram Issue with polars >v1.26
-- [ ] Easy interface
+- [ ] Easy interface (GUI) ideas
 - [ ] Query support
 
 - [ ] Enable support for
