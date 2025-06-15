@@ -16,7 +16,7 @@ _**pyCura**_ is a **configuration-driven 📝, extensible 🧩 data curation fra
 
 <h2>✨ Why pyCura? </h2>
 <table>
-  <tr><td>🏛️</td><td><b>Open & Accessible:</b> pyCura is free, open-source, and [TODO] user-friendly. Configure pipelines with simple <b>JSON</b> and [TODO] <b>TOML</b> – no gatekeeping, no obscurity. </td></tr>
+  <tr><td>🏛️</td><td><b>Open & Accessible:</b> pyCura is free, open-source, and [TODO] user-friendly. Configure pipelines with simple <b>JSON</b> and <b>TOML</b> – no gatekeeping, no obscurity. </td></tr>
   <tr><td>🦾</td><td><b>Hands-on Automation:</b> Define reusable pipelines for automated pre-processing. Inspect data at each stage to catch issues early, ensuring quality, auditability, and rigor, while minimizing manual work.</td></tr>
 <tr><td>💾</td><td><b>[TODO] Codebook Conversion (SPSS & More):</b> Offers out-of-the-box conversion for codebooks from statistical software like SPSS, simplifying integration and preserving valuable metadata from existing workflows.</td></tr>
 <tr><td>🚛</td><td><b>Flexible, Declarative Imports & Exports:</b> Customize data imports and exports through declarative options. Whether you need to standardize incoming data from multiple <b>upstream sources</b>, or prepare data for different <b>downstream entities</b> with their own requirements, pyCura got you covered.</td></tr>
@@ -28,9 +28,9 @@ _**pyCura**_ is a **configuration-driven 📝, extensible 🧩 data curation fra
 
  ⚙️ **Easy to Customize** | 🔌 **Highly Extensible**  
 --------------------------------|------------------------
- Configure ***data processing operations*** through simple JSON files. The framework is [TODO] ***very beginner-friendly***, meaning no coding experience is required for designing and running standard pipelines. | You can simply ***write a custom processing module***, drop it in the appropriate directory, and use it in your configuration file. ***No core changes are needed***, as pyCura automatically integrates new, custom components that adhere to it's interface. ***Consider contributing*** your modules to the project! 
+ Configure ***data processing operations*** through simple <b>JSON and TOML files</b>. The framework is [TODO] ***very beginner-friendly***, meaning no coding experience is required for designing and running standard pipelines. | You can simply ***write a custom processing module***, drop it in the appropriate directory, and use it in your configuration file. ***No core changes are needed***, as pyCura automatically integrates new, custom components that adhere to it's interface. ***Consider contributing*** your modules to the project! 
 ⭐️ **Templates and Tutorials**|🎯 **Simple Dependency Management**
-[TODO] ***Check out the tutorial files*** to get started. Step-by-step guidance for parsing, inspecting, and configuring your data processing operations.  | [TODO] pyCura releases ***bundle all dependencies*** as pre-built packages for Windows, macOS, and Linux. This provides a simple way to install and run the framework. You can, of course, install the dependencies via PyPI if you prefer.
+ ***Check out the tutorial files*** to get started. Step-by-step guidance for parsing, inspecting, and configuring your data processing operations.  | pyCura releases ***bundle all dependencies*** as pre-built packages for Windows, macOS, and Linux. This provides a simple way to install and run the framework. You can, of course, install the dependencies via PyPI if you prefer.
 
 ***See the sections below for more information.*** 
 
@@ -225,7 +225,7 @@ For example:
 
 }
 ```
-... will output the entire pre-processed dataset **4 times**. The first time as a **monolith** (all rows in one file), the second time as a **mirror of the input** (which could be multiple csv files with 50k rows each, or just one file with 250k rows), the third time with a **monthly** batch strategy, and the fourth time with a **maximum of 100k** rows per file. The default is:
+... will output the entire pre-processed dataset **4 times**. The first time as a **monolith** (all rows in one file), the second time as a **mirror of the input** (which could be multiple csv files with 50k rows each, or just one file with 250k rows), the third time with a **column-based** batch strategy, and the fourth time with a **maximum of 100k** rows per file. The default is:
 
 ```json
 "output_formats_and_batching": { "csv": "mirror_input" }
@@ -320,28 +320,29 @@ df <- read.csv(file.path(base_path, "csv", "data.csv"))
 print(df)
 ```
 
-## Philosophy & Roadmap
+## Roadmap
 
-We believe that **data literacy** is essential in the digital era, and are committed to prividing an accessible way for everyone to learn about data, regardless of background or prior programming knowledge. Our goal is to provide **three levels of interface**, so that users can engage in the way that best matches their skills and needs:
+We believe that **data literacy** is essential in the digital era, and are committed to prividing an accessible way for everyone to learn about data. Our goal is to provide **three levels of interface**, so that users can engage in the way that best matches their skills and needs:
 
-1. **[TODO]: TBA :** Designed for beginners—no programming or JSON knowledge required. Users can run pre-build pipelines, verify results, and interact with their data in an approachable, guided environment.
+1. **[TODO]: TBA :** Designed for beginners—no programming required. Users can run pre-build pipelines, verify results, and interact with their data in an approachable, guided environment.
 
-2. **JSON, CLI & Regular Expressions:** For intermediate users who are comfortable with configuration files and command-line operations. This level enables writing parameterized pipelines, for reproducibility and automation, empowering users to build robust workflows.
+2. **JSON, TOML, CLI & Regular Expressions:** For intermediate users who are comfortable with configuration files. This level enables writing parameterized pipelines.
 
-3. **Python, Polars, SQL and Custom Modules:** For advanced users and developers. The modular codebase allows for easy customization—users can write their own modules, extend functionality, and fully integrate the toolkit into larger systems.
+3. **Python, Polars, SQL and Custom Modules:** For advanced users and developers. The modular codebase allows for easy customization—users can write their own modules and use them in pyCura pipelines.
 
-Our commitment is to **ensure everyone can use pyCura**—and that everyone who does, will gain experience that is **universally applicable**, not just limited to this product.
+Our commitment is to **ensure everyone can use pyCura**—and that everyone who does, will gain experience that is **applicable universally**, not just limited to this product.
 
 
 ### MUST
 
 - [x] Allow for programmatic json config files
+- [x] Allow for programmatic toml config files
 - [ ] Rework cura.py
   - [ ] simplify json synatx
   - [ ] simplify -value routing
-- [x] Allow for programmatic toml config files
 - [ ] Research out-of-ram Issue with polars >v1.26
 - [ ] Easy interface (GUI) ideas
+  - [ ] bubble table with touch typing
 - [ ] Query support
 
 - [ ] Enable support for
