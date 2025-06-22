@@ -194,6 +194,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	
+	
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := lipgloss.NewStyle().Margin(1, 2).GetFrameSize()
@@ -230,8 +232,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			
 		case key.Matches(msg, m.keyMap.Exec):
 			if m.selectedFile != nil {
-				// Execute Python script with selected file
-				result, err := m.executor.ExecutePythonScript(*m.selectedFile)
+				// For simplicity, directly use file content as potential input
+				// This assumes the config file may contain any necessary input parameters
+				result, err := m.executor.ExecutePythonScript(*m.selectedFile, nil)
 				if err != nil {
 					m.executionResult = fmt.Sprintf("Error executing script: %v", err)
 				} else {
