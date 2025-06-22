@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"go_interface/internal/data"
+	"go_interface/internal/highlighter"
 	"go_interface/internal/python"
 )
 
@@ -23,6 +24,7 @@ var (
 	secondaryTextColor = lipgloss.Color("#E6E6FA") // Lavender
 	accentColor       = lipgloss.Color("#FFD700") // Gold
 	bgColor           = lipgloss.Color("#282c34") // Dark background
+	buttonColor       = lipgloss.Color("#5F9EA0") // Cadet Blue
 	
 	titleStyle = lipgloss.NewStyle().
 		Foreground(titleColor).
@@ -45,6 +47,15 @@ var (
 	accentStyle = lipgloss.NewStyle().
 		Foreground(accentColor).
 		Bold(true)
+	
+	buttonStyle = lipgloss.NewStyle().
+		Foreground(textColor).
+		Background(buttonColor).
+		Padding(0, 2).
+		MarginRight(1)
+	
+	activeButtonStyle = buttonStyle.Copy().
+		Background(lipgloss.Color("#8FBC8F"))  // Dark Sea Green
 )
 
 // Item represents a config file item in the list
@@ -72,6 +83,7 @@ type keyMap struct {
 	Up    key.Binding
 	Down  key.Binding
 	Enter key.Binding
+	Exec  key.Binding
 	Quit  key.Binding
 	Help  key.Binding
 }
@@ -89,7 +101,11 @@ func newKeyMap() keyMap {
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "select"),
+			key.WithHelp("enter", "view file"),
+		),
+		Exec: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "execute script"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
@@ -104,13 +120,13 @@ func newKeyMap() keyMap {
 
 // ShortHelp returns keybindings to be shown in the mini help view.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Enter, k.Quit, k.Help}
+	return []key.Binding{k.Up, k.Down, k.Enter, k.Exec, k.Quit, k.Help}
 }
 
 // FullHelp returns keybindings for the expanded help view.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Enter},
+		{k.Up, k.Down, k.Enter, k.Exec},
 		{k.Quit, k.Help},
 	}
 }
@@ -125,6 +141,8 @@ type Model struct {
 	showHelp       bool
 	viewport       viewport.Model
 	executionResult string
+	viewMode       viewMode
+	fileContent    string
 }
 
 // NewModel creates a new instance of the application model
@@ -144,7 +162,7 @@ func NewModel(executor *python.Executor, configFiles []data.ConfigFile) Model {
 	listModel.Styles.Title = titleStyle
 	listModel.Styles.FilterPrompt = accentStyle
 	
-	// Create viewport for displaying execution results
+	// Create viewport for displaying file contents and execution results
 	viewportModel := viewport.New(0, 0)
 	viewportModel.Style = lipgloss.NewStyle().Foreground(secondaryTextColor)
 
@@ -161,6 +179,15 @@ func NewModel(executor *python.Executor, configFiles []data.ConfigFile) Model {
 func (m Model) Init() tea.Cmd {
 	return nil
 }
+
+// viewMode indicates what is currently being displayed in the viewport
+type viewMode int
+
+const (
+	viewModeNone viewMode = iota
+	viewModeContent
+	viewModeExecution
+)
 
 // Update handles messages and user input
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -185,17 +212,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				selectedFile := i.file
 				m.selectedFile = &selectedFile
 				
-				result, err := m.executor.ExecutePythonScript(selectedFile)
+				// Read and highlight file content
+				content, err := m.ReadFileContent(selectedFile)
 				if err != nil {
-					m.executionResult = fmt.Sprintf("Error: %v", err)
+					m.executionResult = fmt.Sprintf("Error reading file: %v", err)
+					m.viewMode = viewModeExecution
 				} else {
-					m.executionResult = result
+					m.fileContent = content
+					m.viewMode = viewModeContent
 				}
-				m.viewport.SetContent(m.executionResult)
+				m.viewport.SetContent(m.getContent())
+				m.viewport.GotoTop()
 			}
 			
 		case key.Matches(msg, m.keyMap.Help):
 			m.showHelp = !m.showHelp
+			
+		case key.Matches(msg, m.keyMap.Exec):
+			if m.selectedFile != nil {
+				// Execute Python script with selected file
+				result, err := m.executor.ExecutePythonScript(*m.selectedFile)
+				if err != nil {
+					m.executionResult = fmt.Sprintf("Error executing script: %v", err)
+				} else {
+					m.executionResult = result
+				}
+				m.viewMode = viewModeExecution
+				m.viewport.SetContent(m.executionResult)
+				m.viewport.GotoTop()
+			}
 		}
 	}
 
@@ -209,19 +254,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// ReadFileContent reads and highlights file content
+func (m Model) ReadFileContent(file data.ConfigFile) (string, error) {
+	// First, read the raw file content
+	rawContent, err := m.executor.ReadFile(file.Path)
+	if err != nil {
+		return "", err
+	}
+	
+	// Apply syntax highlighting based on file type
+	highlightedContent := highlighter.Highlight(rawContent, file.FileType)
+	return highlightedContent, nil
+}
+
+// getContent returns the appropriate content for the viewport based on view mode
+func (m Model) getContent() string {
+	switch m.viewMode {
+	case viewModeContent:
+		return m.fileContent
+	case viewModeExecution:
+		return m.executionResult
+	default:
+		return ""
+	}
+}
+
 // View renders the UI
 func (m Model) View() string {
 	var sb strings.Builder
 
 	sb.WriteString(m.list.View())
-	sb.WriteString("\n\n")
+	sb.WriteString("\n")
 	
 	if m.selectedFile != nil {
+		// Add visual buttons for actions
+		viewButtonStyle := buttonStyle
+		execButtonStyle := buttonStyle
+		
+		// Highlight the active button based on view mode
+		if m.viewMode == viewModeContent {
+			viewButtonStyle = activeButtonStyle
+		} else if m.viewMode == viewModeExecution {
+			execButtonStyle = activeButtonStyle
+		}
+		
+		sb.WriteString("\n")
+		sb.WriteString(viewButtonStyle.Render("[Enter] View Content"))
+		sb.WriteString(execButtonStyle.Render("[E] Run Script"))
+		sb.WriteString("\n\n")
+		
 		sb.WriteString(accentStyle.Render("Selected file: " + m.selectedFile.Name))
+		
+		// Show message about what's being displayed
+		switch m.viewMode {
+		case viewModeContent:
+			sb.WriteString(" " + infoStyle.Render("(Showing file content)"))
+		case viewModeExecution:
+			sb.WriteString(" " + infoStyle.Render("(Showing execution result)"))
+		}
+		
 		sb.WriteString("\n\n")
 		sb.WriteString(m.viewport.View())
 	} else {
-		sb.WriteString(infoStyle.Render("Select a config file to run with src.cura.py"))
+		sb.WriteString("\n" + infoStyle.Render("Select a config file to view its contents or run the script"))
 	}
 	
 	if m.showHelp {

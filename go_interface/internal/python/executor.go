@@ -60,3 +60,12 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile) (string, erro
 	// This is a placeholder for future implementation
 	return "Would execute src.cura.py with config file: " + configFile.Path, nil
 }
+
+// ReadFile reads the contents of a file
+func (e *Executor) ReadFile(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
