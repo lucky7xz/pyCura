@@ -241,8 +241,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.executionResult = result
 				}
 				m.viewMode = viewModeExecution
-				m.viewport.SetContent(m.executionResult)
-				m.viewport.GotoTop()
+				m.viewport.SetContent(m.getContent())
+				// Auto-scroll to the bottom when showing execution results
+				m.viewport.GotoBottom()
 			}
 		}
 	}

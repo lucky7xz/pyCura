@@ -1,6 +1,7 @@
 package python
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -66,7 +67,7 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Try multiple locations for the script
 	possibleLocations := []string{
 		// From CWD
@@ -76,7 +77,7 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		filepath.Join(filepath.Dir(configFile.Path), "../src/cura.py"),
 		// Default looking up for pyCura root
 	}
-	
+
 	// Navigate up from config file until we find the pyCura directory
 	srcDir := filepath.Dir(configFile.Path)
 	for i := 0; i < 5; i++ { // Limit depth to avoid infinite loop
@@ -85,10 +86,10 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		}
 		srcDir = filepath.Dir(srcDir)
 	}
-	
+
 	// Add the found path
 	possibleLocations = append(possibleLocations, filepath.Join(srcDir, "src", "cura.py"))
-	
+
 	// Find the first location that exists
 	srcPath := ""
 	for _, path := range possibleLocations {
@@ -97,25 +98,70 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 			break
 		}
 	}
-	
+
 	// If no script found, return an error
 	if srcPath == "" {
 		return "Error: Could not find src/cura.py script in any expected location", fmt.Errorf("could not find script")
 	}
-	
-	// Read the config file content first (to use as potential input)
-	configContent, err := os.ReadFile(configFile.Path)
+
+	// We don't need to read the config file content anymore since we're not displaying it
+	// Just check if the file exists and is readable
+	_, err = os.Stat(configFile.Path)
 	if err != nil {
-		return fmt.Sprintf("Error reading config file: %v", err), err
+		return fmt.Sprintf("Error accessing config file: %v", err), err
 	}
+
+	// For Python to find the 'src' module, we need to run from the pyCura root directory
+	// We no longer need to identify the pyCura root as our wrapper script handles that
+
+	// First, look for a virtual environment in standard locations
+	pyCuraRoot := "/home/lucky/dotfiles/scripts/pyCura"
+	possibleEnvPaths := []string{
+		filepath.Join(pyCuraRoot, "venv", "bin", "activate"),
+		filepath.Join(pyCuraRoot, "env", "bin", "activate"),
+		filepath.Join(pyCuraRoot, ".venv", "bin", "activate"),
+	}
+
+	// Extract just the config name from the path
+	configName := filepath.Base(configFile.Path)
+	configName = strings.TrimSuffix(configName, filepath.Ext(configName))
 	
-	// Instead of trying to run a command directly, let's just display the help to show available commands
-	cmd := exec.Command("python3", srcPath, "-h")
-	
+	// Create a shell command that activates the virtualenv before running the Python script
+	shellCmd := fmt.Sprintf(
+		"cd %s && python3 -c \"import sys, os; sys.path.insert(0, '%s'); os.environ['PYTHONPATH'] = '%s' + os.pathsep + os.environ.get('PYTHONPATH', ''); import runpy; runpy.run_path('%s', run_name='__main__')\" %s run",
+		pyCuraRoot,  // cd to the pyCura root
+		pyCuraRoot,  // Add root to sys.path
+		pyCuraRoot,  // Set PYTHONPATH
+		srcPath,     // Run the actual script
+		configName,  // Pass just the config name
+	)
+
+	// Find the first existing virtualenv
+	venvPath := ""
+	for _, path := range possibleEnvPaths {
+		if _, err := os.Stat(path); err == nil {
+			venvPath = path
+			break
+		}
+	}
+
+	// If we found a virtualenv, activate it
+	if venvPath != "" {
+		shellCmd = fmt.Sprintf("source %s && %s", venvPath, shellCmd)
+	}
+
+	// Execute through bash to handle environment activation
+	cmd := exec.Command("bash", "-c", shellCmd)
+
+	// The config file path and help flag are already included in the shell command
+
 	// Provide default input for interactive prompts
-	// Looking at the script, it will prompt for target_data_structures ("What target(s) to inspect? (cb/dd/both)")
-	// We'll provide "both" as the default answer
-	defaultInput := "both\n"
+	// The script has multiple interactive prompts, so we need to provide answers for all of them
+	defaultInput := "both\n" + // Answer to "What target(s) to inspect? (cb/dd/both)"
+		"y\n" +     // Confirmation for domain pre-processing
+		"y\n" +     // Confirmation for any other prompts
+		"y\n" +     // Additional confirmations just in case
+		"y\n"       // More confirmations
 	if stdin != nil {
 		// If custom input is provided, use it instead
 		cmd.Stdin = stdin
@@ -123,37 +169,82 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		// Otherwise use our default input
 		cmd.Stdin = strings.NewReader(defaultInput)
 	}
+
+	// Create pipes for real-time output capture
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return "Error creating stdout pipe", err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return "Error creating stderr pipe", err
+	}
 	
-	// Capture both stdout and stderr
+	// Start the command (doesn't wait for it to complete)
+	err = cmd.Start()
+	if err != nil {
+		return "Error starting command", err
+	}
+	
+	// Collect output in real-time
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
 	
-	// Set working directory to the directory containing the script
-	cmd.Dir = filepath.Dir(srcPath)
+	// Create a channel to signal when reading is done
+	done := make(chan bool)
 	
-	// Execute the command
-	err = cmd.Run()
+	// Read stdout in a goroutine and filter out unwanted lines
+	go func() {
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Skip INFO lines from project_manager
+			if !strings.Contains(line, "INFO:src.shared.project_manager") {
+				stdout.WriteString(line + "\n")
+			}
+		}
+		done <- true
+	}()
 	
+	// Read stderr in a goroutine
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text() + "\n"
+			stderr.WriteString(line)
+		}
+		done <- true
+	}()
+	
+	// Wait for both stdout and stderr to be read
+	<-done
+	<-done
+	
+	// Wait for the command to finish
+	err = cmd.Wait()
+
 	// Format the result with helpful information
 	result := fmt.Sprintf("Config File: %s\n\n", configFile.Path)
 	result += fmt.Sprintf("Python Script: %s\n\n", srcPath)
-	result += fmt.Sprintf("Config Content:\n%s\n\n", string(configContent))
+	result += fmt.Sprintf("Executed Command:\n%s\n\n", shellCmd)
 	
-	// Add the output from help command
+	// Show real-time output first
+	result += "===== EXECUTION OUTPUT =====\n"
 	if stdout.Len() > 0 {
-		result += "Available Commands:\n" + stdout.String() + "\n"
+		result += stdout.String() + "\n"
 	}
-	
-	// Also add any error output
 	if stderr.Len() > 0 {
-		result += "Script Messages:\n" + stderr.String() + "\n"
+		result += "STDERR:\n" + stderr.String() + "\n"
 	}
+	result += "===== END OUTPUT =====\n\n"
 	
+	// Don't include config content in the output as requested
+
+	// We've already included the output in the EXECUTION OUTPUT section above
+
 	result += "\nTo execute specific commands with this config file, use the command line.\n"
 	result += fmt.Sprintf("Example: python3 %s %s run\n", srcPath, configFile.Path)
 	result += "Note: This script requires interactive input which is best handled in a terminal.\n"
-	
+
 	return result, nil
 }
 
