@@ -155,13 +155,20 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 
 	// The config file path and help flag are already included in the shell command
 
-	// Provide default input for interactive prompts
-	// The script has multiple interactive prompts, so we need to provide answers for all of them
+	// Provide extensive default input for interactive prompts
+	// The script has multiple interactive prompts including confirmations
+	// Create a large number of default responses to prevent EOF errors
 	defaultInput := "both\n" + // Answer to "What target(s) to inspect? (cb/dd/both)"
 		"y\n" +     // Confirmation for domain pre-processing
 		"y\n" +     // Confirmation for any other prompts
-		"y\n" +     // Additional confirmations just in case
-		"y\n"       // More confirmations
+		"y\n" +     // Additional prompts
+		"y\n" +     // More confirmations
+		"y\n" +     // Even more confirmations
+		"y\n" +     // Additional safety confirmations
+		"y\n" +     // Additional safety confirmations
+		"y\n" +     // Additional safety confirmations
+		"y\n" +     // Additional safety confirmations
+		"y\n"       // Final backup confirmation
 	if stdin != nil {
 		// If custom input is provided, use it instead
 		cmd.Stdin = stdin
@@ -180,6 +187,8 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		return "Error creating stderr pipe", err
 	}
 	
+	// No status tracking needed for now
+	
 	// Start the command (doesn't wait for it to complete)
 	err = cmd.Start()
 	if err != nil {
@@ -197,8 +206,13 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		scanner := bufio.NewScanner(stdoutPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
-			// Skip INFO lines from project_manager
-			if !strings.Contains(line, "INFO:src.shared.project_manager") {
+			
+			// No status tracking here
+			
+			// Skip all project_manager info lines and empty lines after filtering
+			if !strings.Contains(line, "project_manager") && 
+			   !strings.Contains(line, "INFO:src") &&
+			   strings.TrimSpace(line) != "" {
 				stdout.WriteString(line + "\n")
 			}
 		}
@@ -215,9 +229,13 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 		done <- true
 	}()
 	
+	// No status monitoring needed
+	
 	// Wait for both stdout and stderr to be read
 	<-done
 	<-done
+	
+	// Status channel removed
 	
 	// Wait for the command to finish
 	err = cmd.Wait()
@@ -226,6 +244,8 @@ func (e *Executor) ExecutePythonScript(configFile data.ConfigFile, stdin io.Read
 	result := fmt.Sprintf("Config File: %s\n\n", configFile.Path)
 	result += fmt.Sprintf("Python Script: %s\n\n", srcPath)
 	result += fmt.Sprintf("Executed Command:\n%s\n\n", shellCmd)
+	
+	// Status bar will be implemented in bubbletea component instead
 	
 	// Show real-time output first
 	result += "===== EXECUTION OUTPUT =====\n"
