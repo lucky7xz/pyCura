@@ -14,6 +14,7 @@ workbench.ipynb
 wheelhouse.zip
 
 !config_files/demo1.json
+!config_files/demo1.toml
 !data_in/demo_dataset/
 !requirements.txt
 
