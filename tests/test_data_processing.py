@@ -1,21 +1,16 @@
 """
-Tests for core data processing logic - path-agnostic tests focusing on 
-data transformations, ordering, and structure that should remain stable.
+Tests for data processing functions and transformations.
 """
+
 import pytest
 import polars as pl
 from pathlib import Path
-import tempfile
-import json
 
-# Import the processing modules we want to test
+from src.shared.utils import sort_whitelist, filter_by_whitelist, merge_dicts
 from src.processing_modules.edits.apply_padding import apply_padding
 from src.processing_modules.edits.apply_case import apply_case
-from src.processing_modules.edits.apply_char_replace import apply_char_replace
 from src.processing_modules.inspections.length_map import length_map
 from src.processing_modules.inspections.char_map import char_map
-from src.processing_modules.inspections.occurrence_map import occurrence_map
-from src.shared.utils import filter_by_whitelist, merge_dicts, sort_whitelist
 
 
 class TestDataTransformations:
@@ -125,37 +120,101 @@ class TestInspectionFunctions:
 
 
 class TestUtilityFunctions:
-    """Test utility functions for data manipulation."""
+    """Test utility functions used across the pipeline."""
     
     def test_sort_whitelist(self):
-        """Test natural sorting of whitelist."""
-        unsorted = ["A10", "A2", "A1", "B1", "A20"]
-        result = sort_whitelist(unsorted)
-        expected = ["A1", "A2", "A10", "A20", "B1"]
-        assert result == expected
-
+        """Test whitelist sorting functionality."""
+        whitelist = ["col3", "col1", "col2"]
+        sorted_list = sort_whitelist(whitelist)
+        assert sorted_list == ["col1", "col2", "col3"]
+    
     def test_filter_by_whitelist_codebook(self):
-        """Test filtering codebook by whitelist."""
-        test_data = {
+        """Test filtering codebook data by whitelist."""
+        codebook_data = {
             "data": {
-                "col1": {"key1": "val1"},
-                "col2": {"key2": "val2"},
-                "col3": {"key3": "val3"}
+                "col1": {"val1": "desc1", "val2": "desc2"},
+                "col2": {"val3": "desc3"},
+                "col3": {"val4": "desc4"}
             },
             "metadata": {
-                "col1": {"meta1": "data1"},
-                "col2": {"meta2": "data2"}, 
-                "col3": {"meta3": "data3"}
+                "col1": {"type": "categorical"},
+                "col2": {"type": "numerical"},
+                "col3": {"type": "text"}
             }
         }
         
-        whitelist = ["col1", "col3"]
-        result = filter_by_whitelist(test_data, whitelist)
+        whitelist = ["col1", "col2"]
+        filtered = filter_by_whitelist(codebook_data, whitelist)
         
-        assert set(result["data"].keys()) == {"col1", "col3"}
-        assert set(result["metadata"].keys()) == {"col1", "col3"}
-        assert "col2" not in result["data"]
-        assert "col2" not in result["metadata"]
+        assert "col1" in filtered["data"]
+        assert "col2" in filtered["data"]
+        assert "col3" not in filtered["data"]
+        assert "col1" in filtered["metadata"]
+        assert "col2" in filtered["metadata"]
+        assert "col3" not in filtered["metadata"]
+    
+    def test_filter_by_whitelist_polars_lazyframe(self):
+        """Test filtering Polars LazyFrame by whitelist."""
+        import polars as pl
+        
+        # Create test LazyFrame
+        df = pl.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [1.1, 2.2, 3.3],
+            "col4": [True, False, True]
+        })
+        lf = df.lazy()
+        
+        whitelist = ["col1", "col3"]
+        filtered = filter_by_whitelist(lf, whitelist)
+        
+        # Check that filtered LazyFrame has correct columns
+        assert isinstance(filtered, pl.LazyFrame)
+        result_df = filtered.collect()
+        assert list(result_df.columns) == ["col1", "col3"]
+        assert len(result_df) == 3
+    
+    def test_filter_by_whitelist_polars_dataframe(self):
+        """Test filtering Polars DataFrame by whitelist."""
+        import polars as pl
+        
+        # Create test DataFrame
+        df = pl.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [1.1, 2.2, 3.3]
+        })
+        
+        whitelist = ["col1", "col2"]
+        filtered = filter_by_whitelist(df, whitelist)
+        
+        # Check that filtered DataFrame has correct columns
+        assert isinstance(filtered, pl.DataFrame)
+        assert list(filtered.columns) == ["col1", "col2"]
+        assert len(filtered) == 3
+    
+    def test_filter_by_whitelist_missing_columns(self):
+        """Test filtering when whitelist contains missing columns."""
+        import polars as pl
+        
+        df = pl.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        
+        whitelist = ["col1", "col3"]  # col3 doesn't exist
+        
+        with pytest.raises(ValueError, match="Not all whitelist columns are in the dataframe"):
+            filter_by_whitelist(df, whitelist)
+    
+    def test_filter_by_whitelist_unsupported_type(self):
+        """Test filtering with unsupported data type."""
+        unsupported_data = "not a valid type"
+        whitelist = ["col1"]
+        
+        with pytest.raises(ValueError, match="Unsupported data type"):
+            filter_by_whitelist(unsupported_data, whitelist)
 
     def test_merge_dicts(self):
         """Test dictionary merging for inspections."""

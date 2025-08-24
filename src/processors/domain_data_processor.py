@@ -1,6 +1,10 @@
+from pathlib import Path
+import logging
 import importlib
-from src.shared.utils import export_to_json
-from src.shared.utils import merge_dicts
+from typing import Dict, Any, List
+
+from src.shared.utils import sort_whitelist, filter_by_whitelist, export_to_json, merge_dicts
+from src.processors.base_processor import BaseProcessor
 import shutil
 import time
 import json
@@ -36,47 +40,22 @@ class ExportError(DomainProcessingError):
     pass
 
 
-class DomainDataProcessor:
-    def __init__(self, dd_injection):
-        """Initialize DomainDataProcessor with a ConfigHandler instance."""
-        self.logger = dd_injection["logger"]
-        self.white_list = dd_injection["whitelist"]
-
-        self.module_paths = dd_injection["module_paths"]
-        self.dd_parsers = dd_injection["module_paths"]["dd_parsers"]
-
-        self.domain_input_paths = dd_injection["input_paths"]["domain"]
-        self.filtered_dd_mirror = dd_injection["buffer_paths"]["filtered_dd_mirror"]
-
-        self.dd_inspections = dd_injection["dd_inspections"]
-
-        #there two have inconsistent naming
-        self.domain_exports = dd_injection["output_paths"]["domain_exports"]
-        self.output_paths_dd = dd_injection["output_paths"]
-
-        self.final_dd = dd_injection["output_paths"]["final_dd"]
+class DomainDataProcessor(BaseProcessor):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """Initialize DomainDataProcessor with simple config and logger."""
+        super().__init__(config, logger)
         
-        self.parsing_options = dd_injection['parsing_options']
-
-        self.csv_export_delimiter = dd_injection.get("csv_export_delimiter", ",")
-        
-        # Default output format and batching if not specified in config
-        self.output_formats_and_batching = dd_injection.get(
+        # Domain-specific config
+        self.dd_inspections = config["dd_inspections"]
+        self.parsing_options = config["parsing_options"]
+        self.csv_export_delimiter = config.get("csv_export_delimiter", ",")
+        self.output_formats_and_batching = config.get(
             "output_formats_and_batching", {"csv": "mirror_input"}
         )
-
+        
+        # State
         self.to_select = []
         self.parsed_table = None
-        
-        # 
-        self.parsing_manager = DomainParsingManager(
-            self.logger,
-            self.white_list,
-            self.dd_parsers,
-            self.domain_input_paths,
-            self.filtered_dd_mirror,
-            self.parsing_options,
-        )
 
         # validated parsers
         # data_sources / validated data sources
@@ -94,41 +73,62 @@ class DomainDataProcessor:
         except Exception as e:
             self.logger.error(f"Error printing table metadata: {e}")
 
-    def run_domain_pre_processing(self):
-        """Parse domain data and prepare it for further processing."""
-        self.logger.info("\n\n --- PARSING DOMAIN DATA ---")
+    def run_pre_processing(self):
+        """Run domain data pre-processing."""
+        self.logger.info("\n --- PARSING DOMAIN DATA ---")
         
-        try:
-            # Parse all data using the parsing manager
-            self.parsed_table = self.parsing_manager.parse_all()
-
-            # Log schema and sample data
-            self.logger.info("\n\n (Whitelisted) Buffer Schema (DATA_BUFFER) && Sample Data: \n")
-            self._print_table_metadata()
+        # Simple parsing flow using base class methods
+        domain_input_path = self.get_input_path("domain")
+        self.parsed_table = self._parse_domain_data(str(domain_input_path))
+        
+        # Simple filtering - but preserve file_name column if it exists
+        self.to_select = sort_whitelist(self.white_list)
+        available_columns = self.parsed_table.collect_schema().names()
+        
+        # Add file_name to selection if it exists but isn't in whitelist
+        if "file_name" in available_columns and "file_name" not in self.to_select:
+            self.to_select.append("file_name")
             
-            self.logger.info(" -> DOMAIN DATA EXPORTED TO PROJECT BUFFER FOLDER")
+        self.parsed_table = filter_by_whitelist(self.parsed_table, self.to_select)
+        
+        # Print metadata
+        self._print_table_metadata()
+        
+        # Export to buffer using base class methods
+        buffer_path = self.get_buffer_path("filtered_dd_mirror")
+        self._export_to_buffer(str(buffer_path))
+        
+        self.logger.info(" -> DOMAIN DATA EXPORTED TO PROJECT BUFFER FOLDER")
+        self.logger.info(" --- DOMAIN PRE-PROCESSING COMPLETE ---")
+    
+    def _parse_domain_data(self, input_path: str):
+        """Parse domain data from input path."""
+        from src.parsers.domain_parsing_manager import DomainParsingManager
+        
+        parsing_manager = DomainParsingManager(
+            self.logger,
+            self.white_list,
+            "src.parsers.domain_data_parsers",  # Simple module path
+            Path(input_path),
+            Path(self.path_manager.get_buffer_path("filtered_dd_mirror")),
+            self.parsing_options,
+        )
+        
+        return parsing_manager.parse_all()
+    
+    def _export_to_buffer(self, buffer_path: str):
+        """Export parsed data to buffer directory."""
+        try:
+            buffer_dir = Path(buffer_path)
+            buffer_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Export the parsed table to buffer
+            output_file = buffer_dir / "domain_data.parquet"
+            self.parsed_table.collect().write_parquet(output_file)
             
         except Exception as e:
-            self.logger.error(f"Error during domain pre-processing: {str(e)}")
-            
-            # Only attempt cleanup if the mirror directory exists
-            if self.filtered_dd_mirror.exists():
-                self.logger.warning(f" -> ERROR OCCURRED. INPUT MIRROR (BUFFER) FOLDER MAY NEED CLEANUP: {self.filtered_dd_mirror}")
-                
-                # Ask for confirmation before removing the directory
-                confirmation = input(
-                    "\n > Error while parsing. Press y to remove domain mirror folder, or press Enter to continue: ")
-                if confirmation.lower() == "y":
-                    try:
-                        shutil.rmtree(self.filtered_dd_mirror)
-                        self.logger.info(f" -> REMOVED MIRROR FOLDER: {self.filtered_dd_mirror}")
-                    except Exception as cleanup_error:
-                        self.logger.error(f"Error removing mirror folder: {cleanup_error}")
-            
-            # Re-raise as a ParsingError with the original exception as context
-            raise ParsingError(f"Failed to parse domain data: {str(e)}") from e
-            
-        self.logger.info(" --- DOMAIN PRE-PROCESSING COMPLETE ---")
+            self.logger.error(f"Error exporting to buffer: {e}")
+            raise ExportError(f"Failed to export to buffer: {str(e)}") from e
 
     def run_inspection_processing(self, second_run: bool):
         """Run inspection functions on the parsed data."""
@@ -168,8 +168,8 @@ class DomainDataProcessor:
                 # ---- IMPORTING INSPECTION FUNCTION ----
                 try:
                     inspection_module = importlib.import_module(
-                        f"{self.module_paths['inspections']}.{inspection_name}"
-                    ) # why not in class namespace
+                        f"src.processing_modules.inspections.{inspection_name}"
+                    )
                     inspection_function = getattr(inspection_module, f"{inspection_name}")
                 except (ImportError, AttributeError) as e:
                     raise InspectionError(f"Failed to import inspection function '{inspection_name}': {str(e)}")
@@ -223,10 +223,10 @@ class DomainDataProcessor:
         self.logger.info(f"Running edit: {edit} on column '{key}' with parameters: {parameters}")
         
         try:
-            # Import the edit module
+            # Import the edit module using static path
             try:
                 edit_module = importlib.import_module(
-                    f"{self.module_paths['edits']}.{edit}"
+                    f"src.processing_modules.edits.{edit}"
                 )
                 edit_function = getattr(edit_module, f"{edit}")
             except (ImportError, AttributeError) as e:
@@ -304,8 +304,9 @@ class DomainDataProcessor:
         - numeric value (e.g., "100000"): Partition by row count
         """
         try:
-            # Load ingestion tracker
-            tracker_path = self.filtered_dd_mirror / "ingestion_tracker.json"
+            # Load ingestion tracker using base class method
+            buffer_path = self.get_buffer_path("filtered_dd_mirror")
+            tracker_path = Path(buffer_path) / "ingestion_tracker.json"
             if not tracker_path.exists():
                 raise ExportError(f"Ingestion tracker not found at {tracker_path}")
                 
@@ -314,13 +315,22 @@ class DomainDataProcessor:
         
             self.logger.info("\n\n --- EXPORTING DOMAIN DATA ---")
 
-            # Prepare columns to select
+            # Prepare columns to select - use the same columns we have after edits
+            available_columns = self.parsed_table.collect_schema().names()
             self.to_select = []
-            if self.parsing_options.get("add_id", False):
+            
+            # Add pyCura_id if it exists and is configured
+            if self.parsing_options.get("add_id", False) and "pyCura_id" in available_columns:
                 self.to_select.append("pyCura_id")
-            # add_file_name
-            # We could also insert at a specific position
-            self.to_select += self.white_list
+            
+            # Add file_name if it exists
+            if "file_name" in available_columns:
+                self.to_select.append("file_name")
+                
+            # Add whitelist columns that exist
+            for col in self.white_list:
+                if col in available_columns:
+                    self.to_select.append(col)
 
             # DEBUG
             #self.logger.info(self.lazy_df.explain(streaming=True))
@@ -330,8 +340,9 @@ class DomainDataProcessor:
                 start = time.time()
                 self.logger.info(f"\n --- EXPORTING AS {format_name.upper()} WITH {batching} BATCHING ---")
                 
-                # Create format-specific directory
-                format_dir = self.domain_exports / format_name
+                # Create format-specific directory using base class method
+                output_path = self.get_output_path("domain")
+                format_dir = Path(output_path) / format_name
                 format_dir.mkdir(exist_ok=True, parents=True)
                 
                 # Call the appropriate format-specific export function

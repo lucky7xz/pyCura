@@ -1,7 +1,9 @@
-import json
-import tomllib
-import logging
 from pathlib import Path
+import logging
+import tomllib
+import json
+from typing import Dict, Any
+from .path_manager import PathManager, initialize_path_manager
 
 from src.shared.utils import sort_whitelist
 
@@ -53,69 +55,67 @@ class ProjectManager:
         self.logger.info("--------------  ----------------")
         self.logger.info(f" -> LOADED CONFIG: {self.config_path}")
 
-        # -----------------DEFINE AND CHECK INPUT PATHS------------------------
+        # -----------------INITIALIZE PATH MANAGER------------------------
         self.project_name = self.config.get("project_name", None)
         domain_foldername = self.config.get("domain_foldername", None)
 
-        data_in_path = Path("data_in")
-        data_buffer_path = Path("data_buffer")
-        data_out_path = Path("data_out")
-
-        # Project specific input paths
-        domain_input_path = data_in_path / domain_foldername / "domain"
-        codebook_input_path = data_in_path / domain_foldername / "codebook"
-
+        # Initialize centralized path management
+        self.path_manager = initialize_path_manager(self.config, self.logger)
+        
         self.logger.info(" -> CHECKING INPUT PATHS...")
 
-        #Other config-file dependend paths/inputs are  
-        if not domain_input_path.exists():
-            raise AssertionError(f"input_path does not exist: {domain_input_path}")
-        if not domain_input_path.iterdir():
-            raise AssertionError(f"Input path(s) do not exist: {domain_input_path}")
-        if not codebook_input_path.exists():
-            raise AssertionError(f"input_path does not exist: {codebook_input_path}")
-        if not codebook_input_path.iterdir():
-            raise AssertionError(f"Input path(s) do not exist: {codebook_input_path}")
+        # Get resolved paths from path manager
+        domain_input_path = Path(self.path_manager.get_input_path("domain"))
+        codebook_input_path = Path(self.path_manager.get_input_path("codebook"))
 
+        # Only check local paths (skip URI validation)
+        if not self.path_manager._is_uri(str(domain_input_path)):
+            if not domain_input_path.exists():
+                raise AssertionError(f"input_path does not exist: {domain_input_path}")
+            if not any(domain_input_path.iterdir()):
+                raise AssertionError(f"Input path(s) do not exist: {domain_input_path}")
+        
+        if not self.path_manager._is_uri(str(codebook_input_path)):
+            if not codebook_input_path.exists():
+                raise AssertionError(f"input_path does not exist: {codebook_input_path}")
+            if not any(codebook_input_path.iterdir()):
+                raise AssertionError(f"Input path(s) do not exist: {codebook_input_path}")
+
+        # Create legacy path dictionaries for backward compatibility
         self.input_paths = {
             "domain": domain_input_path,
             "codebook": codebook_input_path,
         }
 
         # -----------------DEFINE BUFFER PATHS-------------------------
-        
-        self.project_buffer_path = data_buffer_path / self.project_name
+        self.project_buffer_path = Path(self.path_manager.get_buffer_path())
 
         self.buffer_paths_cb = {
-            "f_cb_mirror": self.project_buffer_path / "original_cb_mirror.json",
-            "f_filtered_cb_mirror": self.project_buffer_path / "filtered_cb_mirror.json",
+            "f_cb_mirror": Path(self.path_manager.get_buffer_path("cb_mirror")),
+            "f_filtered_cb_mirror": Path(self.path_manager.get_buffer_path("filtered_cb_mirror")),
         }
 
         self.buffer_paths_dd = {
-            "filtered_dd_mirror": self.project_buffer_path / "buffer_dd"
+            "filtered_dd_mirror": Path(self.path_manager.get_buffer_path("filtered_dd_mirror"))
         }
+        
+        # Directory creation is now handled by PathManager
         self.mkdir_list = []
-        self.mkdir_list.append(self.buffer_paths_dd["filtered_dd_mirror"])
+        
         # -----------------DEFINE OUTPUT PATHS-------------------------
-        self.project_export_path = data_out_path / self.project_name
+        self.project_export_path = Path(self.path_manager.get_output_path())
 
         self.output_paths_cb = {
-            "inspection": self.project_export_path / "inspection",
-            "key_exports": self.project_export_path / "key_exports",
-            "f_final_cb": self.project_export_path / "final_codebook.json",
+            "inspection": Path(self.path_manager.get_output_path("inspection")),
+            "key_exports": Path(self.path_manager.get_output_path("key_exports")),
+            "f_final_cb": Path(self.path_manager.get_output_path("final_cb")),
         }
 
         self.output_paths_dd = {
-            "inspection": self.project_export_path / "inspection",
-            "domain_exports": self.project_export_path / "domain_exports",
-            "final_dd": self.project_export_path / "final_data_data",
+            "inspection": Path(self.path_manager.get_output_path("inspection")),
+            "domain_exports": Path(self.path_manager.get_output_path("domain_exports")),
+            "final_dd": Path(self.path_manager.get_output_path("final_dd")),
         }
-
-        # 'parents=True' in _setup_directories allows to skip the rest 
-        self.mkdir_list.append(self.output_paths_cb["inspection"])
-        self.mkdir_list.append(self.output_paths_cb["key_exports"])
-        self.mkdir_list.append(self.output_paths_dd["domain_exports"])
-        self.mkdir_list.append(self.output_paths_dd["final_dd"])
 
         # --------------- DEFINE MODULE AND CHECK PATHS -------------------------
         # TODO - check if valid - see import statement
@@ -161,7 +161,7 @@ class ProjectManager:
             
         }
 
-        self._setup_directories()
+        # PathManager handles directory creation automatically
         self.logger.info(
             f" -> INITIALIZED PROJECT-MANAGER FOR '{self.project_name}'"
         )
@@ -171,9 +171,9 @@ class ProjectManager:
 
     def _setup_directories(self) -> None:
         """Create necessary directory structure if it doesn't exist."""
-
-        for directory in self.mkdir_list:
-            directory.mkdir(parents=True, exist_ok=True)
+        # Directory creation is now handled by PathManager during initialization
+        # This method is kept for backward compatibility but does nothing
+        pass
 
     # ------------------------------------------------------------------------
     def _validate_config(self, config: dict[str, any]) -> None:
@@ -230,11 +230,13 @@ class ProjectManager:
     def _load_config(self) -> dict[str, any]:
         """Load and parse the configuration file."""
 
-
-        # Check for .toml or .json extension and apply if needed
-        if self.config_path.suffix != ".json" and \
-            self.config_path.suffix != ".toml" and \
-            self.config_path.suffix != ".tml":
+        # Determine config type from extension
+        if self.config_path.suffix in [".toml", ".tml"]:
+            config_type = "toml"
+        elif self.config_path.suffix == ".json":
+            config_type = "json"
+        else:
+            # Check for .toml or .json extension and apply if needed
             config_path_toml = self.config_path.with_suffix(".toml")
             config_path_json = self.config_path.with_suffix(".json")
 
@@ -363,3 +365,13 @@ class ProjectManager:
         """Delete the log file."""
         if self.log_file.exists():
             self.log_file.unlink()
+    
+    def get_codebook_processor(self):
+        """Create and return a CodebookProcessor instance."""
+        from src.processors.codebook_processor import CodebookProcessor
+        return CodebookProcessor(self.config, self.logger)
+    
+    def get_domain_data_processor(self):
+        """Create and return a DomainDataProcessor instance."""
+        from src.processors.domain_data_processor import DomainDataProcessor
+        return DomainDataProcessor(self.config, self.logger)

@@ -1,23 +1,31 @@
 import json
 from pathlib import Path
 import re
+import polars as pl
 
 
-def filter_by_whitelist(data: list | dict[str, any], white_list: list[str]) -> list | dict[str, any]:
+def filter_by_whitelist(data, white_list: list[str]):
     """Filter a dataframe or dictionary based on the white_list in the config."""
     
-    if not isinstance(data, list) and not isinstance(data, dict):
-        raise ValueError("data must be a list or dictionary")
-
-
-    if isinstance(data, list):
+    # Handle Polars LazyFrame/DataFrame
+    if isinstance(data, (pl.LazyFrame, pl.DataFrame)):
+        available_cols = data.columns
+        if all(col in available_cols for col in white_list):
+            return data.select(white_list)
+        else:
+            missing_cols = [col for col in white_list if col not in available_cols]
+            raise ValueError(f"Not all whitelist columns are in the dataframe. Missing: {missing_cols}")
+    
+    # Handle list (legacy support)
+    elif isinstance(data, list):
         # keep only columns that are in the white_list if all whitelist cols are in the dataframe
         if all(col in data.columns for col in white_list):
             return data[white_list]  
         else:
             raise ValueError("Not all whitelist columns are in the dataframe")
     
-    else:  # keep only keys that are in the white_list
+    # Handle dictionary (codebook format)
+    elif isinstance(data, dict):
         if all(key in data["data"] for key in white_list) and \
             all(key in data["metadata"] for key in white_list):
 
@@ -34,6 +42,9 @@ def filter_by_whitelist(data: list | dict[str, any], white_list: list[str]) -> l
             print(f"Metadata missing: {metadata_missing}")
             print(f"Data missing: {data_missing}")
             raise ValueError(f"Not all whitelist columns are in the Codebook: {data_missing}")
+    
+    else:
+        raise ValueError(f"Unsupported data type: {type(data)}. Expected Polars LazyFrame/DataFrame, list, or dict.")
 
 
 def export_to_json(data: dict[str, any], folder: Path, filename: str) -> None:

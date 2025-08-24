@@ -6,9 +6,8 @@ def append_column(data: tuple[pl.LazyFrame, str], source_column: str, regex_patt
     
     Args:
         data: Tuple of (LazyFrame, key) where key is the name of the new field
-        args: List containing [source_column, regex_pattern]
-            - source_column: Column to extract data from
-            - regex_pattern: Regular expression with a capture group
+        source_column: Column to extract data from
+        regex_pattern: Regular expression with a capture group
             
     Returns:
         Updated LazyFrame with the new field added
@@ -21,19 +20,22 @@ def append_column(data: tuple[pl.LazyFrame, str], source_column: str, regex_patt
     """
 
     if not isinstance(data, tuple):
-        #Codebook case
-        pass
+        # Codebook case - not supported yet
+        raise ValueError("append_column currently only supports LazyFrame data")
         
-
-    elif isinstance(data, tuple) and len(data) != 2:
+    if len(data) != 2:
         raise ValueError("append_column requires a tuple of (LazyFrame, key)")
     
-    else:
-        lf, new_field_name = data
+    lf, new_field_name = data
+    
+    # Check if source column exists
+    available_columns = lf.collect_schema().names()
+    if source_column not in available_columns:
+        raise ValueError(f"Source column '{source_column}' not found in LazyFrame. Available columns: {available_columns}")
 
-        result = lf.with_columns(
-            pl.col(source_column)
-            .str.extract(regex_pattern, 1)
-            .alias(new_field_name)
-        )
-        return result
+    result = lf.with_columns(
+        pl.col(source_column)
+        .str.extract(regex_pattern, 1)
+        .alias(new_field_name)
+    )
+    return result

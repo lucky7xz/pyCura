@@ -1,0 +1,66 @@
+# Example configuration file for pyCura with enhanced path management
+# Supports local paths, cloud storage URIs, HTTP URLs, and glob patterns
+
+[project]
+project_name = "sample_project"
+domain_foldername = "healthcare_data"
+
+# Path configuration - external path definitions with sensible defaults
+[paths]
+# Base directories - can be local paths, cloud URIs, or HTTP URLs
+base_input = "data_in"                    # Default: local data_in/
+base_buffer = "data_buffer"               # Default: local data_buffer/
+base_output = "data_out"                  # Default: local data_out/
+base_config = "config_files"              # Default: local config_files/
+base_logs = "logs"                        # Default: local logs/
+
+# Examples of cloud storage paths:
+# base_input = "s3://my-data-bucket/input"              # Amazon S3
+# base_input = "gs://my-gcs-bucket/input"               # Google Cloud Storage  
+# base_input = "abfss://container@account.dfs.core.windows.net/input"  # Azure Data Lake
+# base_input = "https://example.com/data"               # HTTP/HTTPS URLs
+
+# Cloud storage authentication (optional - Polars uses standard auth methods)
+[paths.cloud_auth]
+# AWS: Uses standard AWS credential chain (IAM roles, ~/.aws/credentials, env vars)
+# GCS: Uses standard GCS auth (service accounts, gcloud auth, env vars) 
+# Azure: Uses standard Azure auth (managed identity, connection strings, env vars)
+# No explicit credentials needed in config - use standard cloud auth patterns
+
+[white_list]
+# Existing whitelist configuration
+columns = ["id", "name", "value"]
+
+[parsing_options]
+add_id = true
+infer_schema_length = 1000
+
+[dd_inspections]
+# Existing inspection configuration
+length_map = { enabled = true }
+char_map = { enabled = true }
+
+[cb_inspections]
+# Existing codebook inspection configuration
+structure_analysis = { enabled = true }
+
+[output_formats_and_batching]
+csv = "mirror_input"
+parquet = "single_file"
+
+# Cloud storage authentication (optional)
+[cloud_storage]
+# aws_access_key_id = "your_key"
+# aws_secret_access_key = "your_secret"
+# aws_region = "us-east-1"
+
+# gcp_service_account_path = "/path/to/service-account.json"
+
+# azure_account_name = "your_account"
+# azure_account_key = "your_key"
+
+[codebooks]
+codebooks = [
+    "./data_in/codebooks/*.json",
+    # "s3://codebook-storage/*.json"
+]

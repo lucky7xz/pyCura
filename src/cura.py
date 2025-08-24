@@ -154,31 +154,27 @@ def run(project_manager):
     if target_data_structures not in ["cb", "dd", "both"]:
         raise ValueError(f"Invalid input '{target_data_structures}'. Use 'cb', 'dd', or 'both'")
 
-    cb_injection = project_manager.cb_injection
-    dd_injection = project_manager.dd_injection
-    
-    # Initialize only the necessary processors
-    #codebook_processor, domain_processor = target_init(target_data_structures)
+    # Initialize only the necessary processors with new simplified signature
     match target_data_structures.lower():
         case "cb":
-            codebook_processor = CodebookProcessor(cb_injection)
+            codebook_processor = project_manager.get_codebook_processor()
         case "dd":
-            domain_processor = DomainDataProcessor(dd_injection)
+            domain_processor = project_manager.get_domain_data_processor()
         case "both":
-            codebook_processor = CodebookProcessor(cb_injection)
-            domain_processor = DomainDataProcessor(dd_injection)
+            codebook_processor = project_manager.get_codebook_processor()
+            domain_processor = project_manager.get_domain_data_processor()
 
     # Helper Functions
     #  -------------------- TARGETING FUNCTIONS -----------------------------
     def target_preprocessing(target_data_structures):
         match target_data_structures.lower():
             case "cb":
-                codebook_processor.run_codebook_pre_processing()
+                codebook_processor.run_pre_processing()
             case "dd":
-                domain_processor.run_domain_pre_processing()
+                domain_processor.run_pre_processing()
             case "both":
-                codebook_processor.run_codebook_pre_processing()
-                domain_processor.run_domain_pre_processing()
+                codebook_processor.run_pre_processing()
+                domain_processor.run_pre_processing()
 
     def target_inspection(target_data_structures, skip_inspection):
         match target_data_structures.lower():
