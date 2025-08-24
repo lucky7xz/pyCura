@@ -45,7 +45,10 @@ class DomainDataProcessor(BaseProcessor):
             n_rows = self.parsed_table.select(pl.len()).collect().item()
             self.logger.info(f"Total Rows: {n_rows}")
             with pl.Config(tbl_cols=20, tbl_rows=20):  # Show up to 20 columns in output
-                print(self.parsed_table.head(10).collect())
+                # Capture polars DataFrame output and send to both console and log files
+                df_sample = self.parsed_table.head(10).collect()
+                df_str = str(df_sample)
+                self.logger.info(f"\nDataFrame Sample:\n{df_str}")
         except Exception as e:
             self.logger.error(f"Error printing table metadata: {e}")
 
