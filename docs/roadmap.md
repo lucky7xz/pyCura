@@ -1,50 +1,49 @@
-# Roadmap
+# 🗺️ Roadmap
 
-We believe that **data literacy** is essential in the digital era, and are committed to prividing an accessible way for everyone to learn about data. Our goal is to provide **three levels of interface**, so that users can engage in the way that best matches their skills and needs:
+We believe that **data literacy** is essential in the digital era, and are committed to providing an accessible way for everyone to learn about data. Our goal is to provide **three levels of interface**, so that users can engage in the way that best matches their skills and needs:
 
-1. **[TODO]: TBA :** Designed for beginners—no programming required. Users can run pre-build pipelines, verify results, and interact with their data in an approachable, guided environment.
+1. **🎯 GUI Interface** *(Planned)* — Designed for beginners—no programming required. Users can run pre-built pipelines, verify results, and interact with their data in an approachable, guided environment.
 
-2. **JSON, TOML, CLI & Regular Expressions:** For intermediate users who are comfortable with configuration files. This level enables writing parameterized pipelines.
+2. **⚙️ Configuration-Driven** *(Current)* — JSON, TOML, CLI & Regular Expressions for intermediate users comfortable with configuration files. This level enables writing parameterized pipelines.
 
-3. **Python, Polars, SQL and Custom Modules:** For advanced users and developers. The modular codebase allows for easy customization—users can write their own modules and use them in pyCura pipelines.
+3. **🐍 Python & Polars** *(Available)* — For advanced users and developers. The modular codebase allows for easy customization—users can write their own modules and use them in pyCura pipelines.
 
 Our commitment is to **ensure everyone can use pyCura**—and that everyone who does, will gain experience that is **applicable universally**, not just limited to this product.
 
-## MUST
+## 🎯 Core Development
 
-- [x] Allow for programmatic json config files
-- [x] Allow for programmatic toml config files
-- [ ] Rework cura.py
-  - [ ] simplify -value routing
-- [ ] Research out-of-ram Issue with polars >v1.26
-- [ ] Easy interface (GUI) ideas
-- [ ] Query support
+### Architecture & Performance
+- [x] **Configuration System** — JSON/TOML config files
+- [x] **Enhanced Logging** — Project-specific + global debug logs  
+- [x] **DataFrame Integration** — Polars output logging with formatting
+- [x] **Exception Handling** — Enhanced error context and debugging
+- [x] **Dependency Analysis** — MIT license compatibility verified
+- [ ] **CLI Refactoring** — Simplify cura.py value routing
+- [ ] **Memory Optimization** — Research polars >v1.26 RAM issues
 
-- [ ] Enable support for
-    - [ ] domain data input formats  
-        - [x] csv
-        - [ ] parquet
-        - [ ] sqlite
-        - [ ] json
-    - [ ] domain data output formats
-        - [x] csv
-        - [ ] parquet
-        - [ ] sqlite
-        - [ ] json
-    - [ ] Same for codebook exports
+### Data Format Support
+- [x] **CSV** — Input/output support
+- [ ] **Parquet** — Input/output support  
+- [ ] **SQLite** — Input/output support
+- [ ] **JSON** — Input/output support
+- [ ] **Codebook Exports** — Multi-format support
 
-- [ ] Update README
+### User Experience  
+- [ ] **GUI Interface** — Beginner-friendly visual interface
+- [ ] **Query Support** — Data querying capabilities
+- [ ] **Status Routine** — Pipeline progress monitoring
 
-## NICE TO HAVE
+*Current focus: Core stability and format expansion*
 
-- [x] Project based logging
-- [ ] 'status' routine
+## 👥 Target Audience
 
-## Target Audience Examples
-- Statisticians processing encoded data
-- Government and public health officials processing sensitive data
-- Academic researchers working with open datasets
-- Municipal IT and open data teams
-- Survey methodologists handling encoded response data
-- Educators teaching data processing, CLI usage, Python, JSON configuration, and ETL concepts through practical examples
-- Anyone needing to curate tabular data in reproducible ways, with or without a codebook
+**Primary Users:**
+- 📊 Statisticians processing encoded data
+- 🏛️ Government and public health officials handling sensitive data  
+- 🎓 Academic researchers working with open datasets
+- 🏢 Municipal IT and open data teams
+
+**Secondary Users:**
+- 📋 Survey methodologists handling encoded response data
+- 👨‍🏫 Educators teaching data processing, CLI, Python, and ETL concepts
+- 🔧 Anyone needing reproducible tabular data curation
