@@ -146,15 +146,13 @@ class DomainDataProcessor(BaseProcessor):
 
 ## Architecture Improvements (Beta 2408)
 
-- ❌ **Complex Injection Dictionaries**: Removed nested parameter passing
-- ❌ **Dynamic Path Construction**: Replaced with centralized resolution
-- ❌ **Scattered Path Logic**: Consolidated in PathManager
-- ❌ **Interactive CLI Prompts**: Simplified to declarative config
-
 - ✅ **URI-Native Paths**: `s3://`, `gs://`, `abfss://` support
 - ✅ **Static Module Imports**: Reliable function loading
 - ✅ **Clean Base Classes**: DRY path access methods
 - ✅ **Simple Data Structures**: Config dictionaries over complex objects
+- ✅ **Enhanced Exception Handling**: LLM-friendly debugging with context
+- ✅ **Dual Logging System**: Project-specific and global debug logs
+- ✅ **DataFrame Log Integration**: Polars output captured in log files
 
 ### Cloud-Native Design
 - **Polars Integration**: Direct URI support in `pl.scan_csv()`
@@ -167,5 +165,4 @@ class DomainDataProcessor(BaseProcessor):
 - **Core**: Python 3.12, Polars (data processing)
 - **Configuration**: TOML (human-readable config)
 - **Cloud**: Native S3/GCS/Azure support via Polars
-- **Testing**: pytest with 68 tests, 40% coverage
-- **Architecture**: Clean Architecture principles, dependency injection elimination
+- **Testing**: pytest with 74 tests, 40% coverage
