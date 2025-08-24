@@ -33,14 +33,16 @@ class ProjectManager:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
 
-        # File handler (logs to file)
-        file_handler = logging.FileHandler("cura_logs.txt")
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(
+        # Clear existing handlers to avoid duplicates
+        self.logger.handlers.clear()
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         )
-        self.logger.addHandler(file_handler)
-        self.log_file = Path("cura_logs.txt")
+        self.logger.addHandler(console_handler)
 
         # ----------------- LOAD CONFIG -------------------------
         config_folder = Path("config_files")
@@ -52,15 +54,18 @@ class ProjectManager:
         # Used for DRY in inspection processing
         self.post_transformation = False
 
-        self.logger.info("--------------  ----------------")
-        self.logger.info(f" -> LOADED CONFIG: {self.config_path}")
-
         # -----------------INITIALIZE PATH MANAGER------------------------
         self.project_name = self.config.get("project_name", None)
         domain_foldername = self.config.get("domain_foldername", None)
 
         # Initialize centralized path management
         self.path_manager = initialize_path_manager(self.config, self.logger)
+        
+        # -----------------SETUP PROJECT-SPECIFIC LOGGING-------------------------
+        self._setup_logging_handlers()
+
+        self.logger.info("--------------  ----------------")
+        self.logger.info(f" -> LOADED CONFIG: {self.config_path}")
         
         self.logger.info(" -> CHECKING INPUT PATHS...")
 
@@ -355,16 +360,72 @@ class ProjectManager:
         )
 
     def reset_data_buffer(self) -> None:
-        """Delete the data_buffer folder."""
+        """Delete the data_buffer folder and reset project log."""
         self._delete_project_buffer_folder()
+        
+        # Reset project log file (it will be recreated when buffer is recreated)
+        if hasattr(self, 'project_log_file') and self.project_log_file.exists():
+            self.project_log_file.unlink()
+            
         self.logger.info(
             f" -> DELETED FOLDER : 'data_buffer/{self.project_name}' "
         )
 
     def reset_log(self) -> None:
         """Delete the log file."""
-        if self.log_file.exists():
+        if hasattr(self, 'log_file') and self.log_file.exists():
             self.log_file.unlink()
+    
+    def _setup_logging_handlers(self) -> None:
+        """Setup console, project-specific and global logging handlers."""
+        # Clear ALL existing handlers to prevent duplication
+        for handler in self.logger.handlers[:]:
+            self.logger.removeHandler(handler)
+            handler.close()
+        
+        # Prevent propagation to root logger to avoid duplicate console output
+        self.logger.propagate = False
+        
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        
+        # Always add console handler first
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        
+        # Project-specific log file in buffer directory
+        try:
+            buffer_path = Path(self.path_manager.get_buffer_path())
+            buffer_path.mkdir(parents=True, exist_ok=True)
+            
+            project_log_file = buffer_path / f"{self.project_name}.log"
+            project_handler = logging.FileHandler(project_log_file, mode='w')  # Reset on each run
+            project_handler.setLevel(logging.INFO)
+            project_handler.setFormatter(formatter)
+            self.logger.addHandler(project_handler)
+            self.project_log_file = project_log_file
+        except (PermissionError, OSError) as e:
+            # In test environments or when permissions are restricted, skip project log
+            self.logger.warning(f"Could not create project log file: {e}")
+            self.project_log_file = None
+        
+        # Global debug log (optional, controlled by config)
+        global_debug = self.config.get("global_debug", False)
+        if global_debug:
+            try:
+                global_log_file = Path("cura_logs.txt")
+                global_handler = logging.FileHandler(global_log_file, mode='a')  # Append to global log
+                global_handler.setLevel(logging.INFO)
+                global_handler.setFormatter(formatter)
+                self.logger.addHandler(global_handler)
+                self.log_file = global_log_file
+            except (PermissionError, OSError) as e:
+                # In test environments, skip global log
+                self.logger.warning(f"Could not create global log file: {e}")
+                self.log_file = None
+        else:
+            self.log_file = None
     
     def get_codebook_processor(self):
         """Create and return a CodebookProcessor instance."""

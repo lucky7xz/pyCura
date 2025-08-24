@@ -4,6 +4,7 @@
 project_name = "project_demo1"  # Used for output folder naming
 domain_foldername = "demo1_dataset"  # Subfolder in data_in/
 white_list = ["BG", "AG", "HA", "ED", "HE", "SE"]  # Only process these columns
+global_debug = true  # Keep global cura_logs.txt file for debugging
 
 
 # ===== PARSER SETTINGS =====
