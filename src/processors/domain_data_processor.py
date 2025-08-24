@@ -103,7 +103,6 @@ class DomainDataProcessor(BaseProcessor):
             self.parsed_table.collect().write_parquet(output_file)
             
         except Exception as e:
-            self.logger.error(f"Error exporting to buffer: {e}")
             raise self.ExportError(f"Failed to export to buffer: {str(e)}") from e
 
     def run_inspection_processing(self, second_run: bool):
@@ -240,7 +239,6 @@ class DomainDataProcessor(BaseProcessor):
                 self.logger.info(f" -> REMOVED COLUMNS: {removed_columns}")
                 
         except Exception as e:
-            self.logger.error(f"Error applying edit '{edit}' to column '{key}': {str(e)}")
             raise self.EditError(f"Failed to apply edit '{edit}' to column '{key}': {str(e)}") from e
             
     def print_edited_table_sample(self):
@@ -261,7 +259,6 @@ class DomainDataProcessor(BaseProcessor):
         try:
             self._export_domain_data()
         except Exception as e:
-            self.logger.error(f"Error during export: {str(e)}")
             raise self.ExportError(f"Failed to export domain data: {str(e)}") from e
 
     # -----------------------------------------------------------------------------------------------------
@@ -336,7 +333,6 @@ class DomainDataProcessor(BaseProcessor):
             self.logger.info(" -> DOMAIN DATA EXPORTED TO DATA_OUT FOLDER")
             
         except Exception as e:
-            self.logger.error(f"Error in _export_domain_data: {str(e)}")
             raise self.ExportError(f"Failed to export domain data: {str(e)}") from e
 
         

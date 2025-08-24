@@ -165,7 +165,6 @@ class CodebookProcessor(BaseProcessor):
                 )
                 inspection_function = getattr(inspection_module, f"{inspection}")
             except (ImportError, AttributeError) as e:
-                self.logger.error(f"Failed to load inspection '{inspection}': {e}")
                 raise self.InspectionError(f"Failed to load inspection '{inspection}': {e}") from e
             inspection_result = inspection_function(
                 self.parsed_codebook, target_values
@@ -217,7 +216,6 @@ class CodebookProcessor(BaseProcessor):
                 f"src.processing_modules.edits.{edit}")
             edit_function = getattr(edit_module, f"{edit}")
         except (ImportError, AttributeError) as e:
-            self.logger.error(f"Failed to load edit function '{edit}': {e}")
             raise self.EditError(f"Failed to load edit function '{edit}': {e}") from e
 
         try:
@@ -228,7 +226,6 @@ class CodebookProcessor(BaseProcessor):
                 # yet to be decided
                 pass
         except Exception as e:
-            self.logger.error(f"Edit '{edit}' failed for key '{key}': {e}")
             raise self.EditError(f"Edit '{edit}' failed for key '{key}': {e}") from e
         
 
@@ -262,5 +259,4 @@ class CodebookProcessor(BaseProcessor):
         try:
             self._export_keys_to_csv_files()
         except Exception as e:
-            self.logger.error(f"Export failed: {e}")
             raise self.ExportError(f"Export failed: {e}") from e
