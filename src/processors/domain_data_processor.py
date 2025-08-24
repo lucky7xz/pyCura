@@ -14,13 +14,6 @@ import polars as pl
 from src.parsers.domain_parsing_manager import DomainParsingManager
 
 
-from src.shared.exceptions import (
-    DomainProcessingError,
-    ParsingError,
-    InspectionError,
-    EditError,
-    ExportError
-)
 
 
 class DomainDataProcessor(BaseProcessor):
@@ -111,14 +104,14 @@ class DomainDataProcessor(BaseProcessor):
             
         except Exception as e:
             self.logger.error(f"Error exporting to buffer: {e}")
-            raise ExportError(f"Failed to export to buffer: {str(e)}") from e
+            raise self.ExportError(f"Failed to export to buffer: {str(e)}") from e
 
     def run_inspection_processing(self, second_run: bool):
         """Run inspection functions on the parsed data."""
         self.logger.info("\n\n --- RUNNING DOMAIN INSPECTION ---")
         
         if self.parsed_table is None:
-            raise InspectionError("Cannot run inspection: No parsed data available")
+            raise self.InspectionError("Cannot run inspection: No parsed data available")
             
         # Get the inspections to run from the config file
         inspections_to_run = self.dd_inspections
@@ -155,7 +148,7 @@ class DomainDataProcessor(BaseProcessor):
                     )
                     inspection_function = getattr(inspection_module, f"{inspection_name}")
                 except (ImportError, AttributeError) as e:
-                    raise InspectionError(f"Failed to import inspection function '{inspection_name}': {str(e)}")
+                    raise self.InspectionError(f"Failed to import inspection function '{inspection_name}': {str(e)}")
                 
                 # ---- GETTING METADATA ----
                 schema = self.parsed_table.collect_schema()
@@ -201,7 +194,7 @@ class DomainDataProcessor(BaseProcessor):
     def run_edit(self, key, edit, parameters):
         """Apply an edit function to the parsed data."""
         if self.parsed_table is None:
-            raise EditError("Cannot run edit: No parsed data available")
+            raise self.EditError("Cannot run edit: No parsed data available")
             
         self.logger.info(f"Running edit: {edit} on column '{key}' with parameters: {parameters}")
         
@@ -213,11 +206,11 @@ class DomainDataProcessor(BaseProcessor):
                 )
                 edit_function = getattr(edit_module, f"{edit}")
             except (ImportError, AttributeError) as e:
-                raise EditError(f"Failed to import edit function '{edit}': {str(e)}")
+                raise self.EditError(f"Failed to import edit function '{edit}': {str(e)}")
 
             # Validate parameters
             if not isinstance(parameters, (list, tuple)):
-                raise EditError(f"Parameters must be a list or tuple, got {type(parameters)}")
+                raise self.EditError(f"Parameters must be a list or tuple, got {type(parameters)}")
 
             # Apply the edit function to the parsed table
             original_schema = self.parsed_table.collect_schema()
@@ -227,7 +220,7 @@ class DomainDataProcessor(BaseProcessor):
             
             # Validate result is a LazyFrame
             if not isinstance(result, pl.LazyFrame):
-                raise EditError(f"Edit function '{edit}' did not return a LazyFrame")
+                raise self.EditError(f"Edit function '{edit}' did not return a LazyFrame")
                 
             self.parsed_table = result
             
@@ -248,7 +241,7 @@ class DomainDataProcessor(BaseProcessor):
                 
         except Exception as e:
             self.logger.error(f"Error applying edit '{edit}' to column '{key}': {str(e)}")
-            raise EditError(f"Failed to apply edit '{edit}' to column '{key}': {str(e)}") from e
+            raise self.EditError(f"Failed to apply edit '{edit}' to column '{key}': {str(e)}") from e
             
     def print_edited_table_sample(self):
         """Print a sample of the edited table."""
@@ -263,13 +256,13 @@ class DomainDataProcessor(BaseProcessor):
     def run_export(self):
         """Export the processed domain data."""
         if self.parsed_table is None:
-            raise ExportError("Cannot export: No parsed data available")
+            raise self.ExportError("Cannot export: No parsed data available")
             
         try:
             self._export_domain_data()
         except Exception as e:
             self.logger.error(f"Error during export: {str(e)}")
-            raise ExportError(f"Failed to export domain data: {str(e)}") from e
+            raise self.ExportError(f"Failed to export domain data: {str(e)}") from e
 
     # -----------------------------------------------------------------------------------------------------
     def _export_domain_data(self):
@@ -291,7 +284,7 @@ class DomainDataProcessor(BaseProcessor):
             buffer_path = self.get_buffer_path("filtered_dd_mirror")
             tracker_path = Path(buffer_path) / "ingestion_tracker.json"
             if not tracker_path.exists():
-                raise ExportError(f"Ingestion tracker not found at {tracker_path}")
+                raise self.ExportError(f"Ingestion tracker not found at {tracker_path}")
                 
             with open(tracker_path, "r") as f:
                 ingestion_tracker = json.load(f)
@@ -344,7 +337,7 @@ class DomainDataProcessor(BaseProcessor):
             
         except Exception as e:
             self.logger.error(f"Error in _export_domain_data: {str(e)}")
-            raise ExportError(f"Failed to export domain data: {str(e)}") from e
+            raise self.ExportError(f"Failed to export domain data: {str(e)}") from e
 
         
 

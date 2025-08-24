@@ -41,11 +41,13 @@ class CodebookProcessor(BaseProcessor):
 
                 # good fit?
         if len(codebook_paths) > 1:
-            raise AssertionError(
+            raise self.ConfigurationError(
                 "More than one codebook file found in the codebook input path. \n"
                 "Please check the codebook input path and remove any duplicate files. \n"
                 "Note that the already parsed codebook json needs to be named \
-                    'filtered_codebook_mirror.json'"
+                    'filtered_codebook_mirror.json'",
+                file_path=str(codebook_input),
+                data_context=f"Found {len(codebook_paths)} files: {[f.name for f in codebook_paths]}"
             )
         return codebook_paths[0]
 
@@ -62,12 +64,26 @@ class CodebookProcessor(BaseProcessor):
         else:
             parser_name = self.select_parser
 
-        parser_module = importlib.import_module(
-            f"src.parsers.codebook_parsers.{parser_name}"
-        )
-        parser_function = getattr(parser_module, "parse_codebook")
+        try:
+            parser_module = importlib.import_module(
+                f"src.parsers.codebook_parsers.{parser_name}"
+            )
+            parser_function = getattr(parser_module, "parse_codebook")
+        except (ImportError, AttributeError) as e:
+            raise self.ParsingError(
+                f"Failed to load codebook parser '{parser_name}': {e}",
+                file_path=str(self.codebook_path),
+                data_context=f"Parser: {parser_name}"
+            ) from e
 
-        return parser_function(self.codebook_path, self.logger)
+        try:
+            return parser_function(self.codebook_path, self.logger)
+        except Exception as e:
+            raise self.ParsingError(
+                f"Codebook parsing failed with parser '{parser_name}': {e}",
+                file_path=str(self.codebook_path),
+                data_context=f"Parser: {parser_name}"
+            ) from e
 
     def run_pre_processing(self):
         """Run codebook pre-processing."""
@@ -143,10 +159,14 @@ class CodebookProcessor(BaseProcessor):
                 #if not hasattr(self, inspection_tag):
                 setattr(self, inspection_tag, inspection_export)
 
-            inspection_module = importlib.import_module(
-                f"src.processing_modules.inspections.{inspection}"
-            )
-            inspection_function = getattr(inspection_module, f"{inspection}")
+            try:
+                inspection_module = importlib.import_module(
+                    f"src.processing_modules.inspections.{inspection}"
+                )
+                inspection_function = getattr(inspection_module, f"{inspection}")
+            except (ImportError, AttributeError) as e:
+                self.logger.error(f"Failed to load inspection '{inspection}': {e}")
+                raise self.InspectionError(f"Failed to load inspection '{inspection}': {e}") from e
             inspection_result = inspection_function(
                 self.parsed_codebook, target_values
             )
@@ -192,16 +212,24 @@ class CodebookProcessor(BaseProcessor):
             )
 
     def run_edit(self, key, edit, parameters) -> None:
-        edit_module = importlib.import_module(
-            f"src.processing_modules.edits.{edit}")
-        edit_function = getattr(edit_module, f"{edit}")
+        try:
+            edit_module = importlib.import_module(
+                f"src.processing_modules.edits.{edit}")
+            edit_function = getattr(edit_module, f"{edit}")
+        except (ImportError, AttributeError) as e:
+            self.logger.error(f"Failed to load edit function '{edit}': {e}")
+            raise self.EditError(f"Failed to load edit function '{edit}': {e}") from e
 
-        if edit != "append_column" and key != 'pyCura_id':
-            data = edit_function(self.parsed_codebook["data"][key], *parameters)
-            self.parsed_codebook["data"][key] = data
-        else:
-            # yet to be decided
-            pass
+        try:
+            if edit != "append_column" and key != 'pyCura_id':
+                data = edit_function(self.parsed_codebook["data"][key], *parameters)
+                self.parsed_codebook["data"][key] = data
+            else:
+                # yet to be decided
+                pass
+        except Exception as e:
+            self.logger.error(f"Edit '{edit}' failed for key '{key}': {e}")
+            raise self.EditError(f"Edit '{edit}' failed for key '{key}': {e}") from e
         
 
     # TODO: Let the user decide output format
@@ -231,4 +259,8 @@ class CodebookProcessor(BaseProcessor):
                 self.logger.info(f"Excluded {key}. Moving on.")
 
     def run_export(self):
-        self._export_keys_to_csv_files()
+        try:
+            self._export_keys_to_csv_files()
+        except Exception as e:
+            self.logger.error(f"Export failed: {e}")
+            raise self.ExportError(f"Export failed: {e}") from e

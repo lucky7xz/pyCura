@@ -8,8 +8,9 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 import polars as pl
 
-from src.processors.domain_data_processor import DomainDataProcessor, EditError, InspectionError
+from src.processors.domain_data_processor import DomainDataProcessor
 from src.processors.codebook_processor import CodebookProcessor
+from src.shared.exceptions import EditError, InspectionError, ExportError, ParsingError, ConfigurationError
 from src.shared.project_manager import ProjectManager
 
 

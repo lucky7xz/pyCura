@@ -8,6 +8,14 @@ from typing import Dict, Any
 from abc import ABC, abstractmethod
 
 from src.shared.path_manager import get_path_manager
+from src.shared.exceptions import (
+    DomainProcessingError,
+    ParsingError,
+    InspectionError,
+    EditError,
+    ExportError,
+    ConfigurationError
+)
 
 
 class BaseProcessor(ABC):
@@ -21,6 +29,14 @@ class BaseProcessor(ABC):
         
         # Common config extraction
         self.white_list = config["white_list"]
+        
+        # Make exceptions available to subclasses
+        self.DomainProcessingError = DomainProcessingError
+        self.ParsingError = ParsingError
+        self.InspectionError = InspectionError
+        self.EditError = EditError
+        self.ExportError = ExportError
+        self.ConfigurationError = ConfigurationError
     
     # Path access methods - DRY principle
     def get_input_path(self, path_type: str = "base") -> Path:
