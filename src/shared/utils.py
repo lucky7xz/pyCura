@@ -9,7 +9,7 @@ def filter_by_whitelist(data, white_list: list[str]):
     
     # Handle Polars LazyFrame/DataFrame
     if isinstance(data, (pl.LazyFrame, pl.DataFrame)):
-        available_cols = data.columns
+        available_cols = data.collect_schema().names()
         if all(col in available_cols for col in white_list):
             return data.select(white_list)
         else:

@@ -14,30 +14,13 @@ import polars as pl
 from src.parsers.domain_parsing_manager import DomainParsingManager
 
 
-# These should be moved upstream
-class DomainProcessingError(Exception):
-    """Base exception for domain data processing errors."""
-    pass
-
-
-class ParsingError(DomainProcessingError):
-    """Exception raised when there's an error parsing domain data."""
-    pass
-
-
-class InspectionError(DomainProcessingError):
-    """Exception raised when there's an error during domain data inspection."""
-    pass
-
-
-class EditError(DomainProcessingError):
-    """Exception raised when there's an error editing domain data."""
-    pass
-
-
-class ExportError(DomainProcessingError):
-    """Exception raised when there's an error exporting domain data."""
-    pass
+from src.shared.exceptions import (
+    DomainProcessingError,
+    ParsingError,
+    InspectionError,
+    EditError,
+    ExportError
+)
 
 
 class DomainDataProcessor(BaseProcessor):
@@ -66,7 +49,7 @@ class DomainDataProcessor(BaseProcessor):
         try:
             self.logger.info(self.parsed_table.collect_schema())
             self.logger.info("\n")
-            n_rows = self.parsed_table.select(pl.count()).collect().item()
+            n_rows = self.parsed_table.select(pl.len()).collect().item()
             self.logger.info(f"Total Rows: {n_rows}")
             with pl.Config(tbl_cols=20, tbl_rows=20):  # Show up to 20 columns in output
                 print(self.parsed_table.head(10).collect())
@@ -179,7 +162,7 @@ class DomainDataProcessor(BaseProcessor):
                 n_cols = len(schema.names())
                 
                 try:
-                    n_rows = self.parsed_table.select(pl.count()).collect().item()
+                    n_rows = self.parsed_table.select(pl.len()).collect().item()
                 except Exception as e:
                     self.logger.warning("Error getting row count - setting to '?'")
                     self.logger.error(str(e))
