@@ -39,7 +39,7 @@ def occurrence_map(data: list | tuple[pl.LazyFrame, list[str]], target_values: b
                 lf
                 .select(pl.col(col).alias("value"))
                 .group_by("value")
-                .agg(pl.count().alias("count"))
+                .agg(pl.len().alias("count"))
                 .sort("value")
                 .collect()
             )

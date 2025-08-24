@@ -109,7 +109,7 @@ def length_map(data: list | dict[str, any] | tuple[pl.LazyFrame, str], target_va
                 lf
                 .select(pl.col(column).str.len_chars().alias("len"))
                 .group_by("len")
-                .agg(pl.count().alias("counts"))
+                .agg(pl.len().alias("counts"))
                 .sort("len")
                 .collect()
             )

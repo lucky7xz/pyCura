@@ -198,7 +198,7 @@ class DomainParsingManager(BaseParsingManager):
                     # ID might need to reset per file
                     if self.add_id:
                         # Collect row count efficiently
-                        n_rows = lf.select(pl.count()).collect().item()
+                        n_rows = lf.select(pl.len()).collect().item()
                         # Add a unique, incrementing id per row, id is string
                         lf = lf.with_columns(pl.arange(current_id, current_id + n_rows).alias("pyCura_id").cast(pl.Utf8))
                         # make sure it is a string
