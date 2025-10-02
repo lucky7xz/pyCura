@@ -8,11 +8,10 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from queue import Queue
-from typing import Optional, Callable
+from typing import Optional, Callable, Literal
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Container
@@ -24,51 +23,59 @@ from textual.widgets import (
     ListView,
     ListItem,
     Label,
-    Button,
+    Input,
     ProgressBar,
-    Rule,
 )
+from textual.validation import Validator, ValidationResult
 
+# --- Global Constants ---
 REPO_ROOT = Path.cwd()
 CONFIG_DIR = REPO_ROOT / "config_files"
 
-
-# Message classes for robust, decoupled communication
-class PromptState(Enum):
-    SELECT_TARGET = auto()
-    PRE_INSPECT = auto()
-    POST_INSPECT = auto()
-    EXPORT_CB = auto()
-    EXPORT_DD = auto()
-    DONE = auto()
-    FAILED = auto()
-
+# --- Message classes for one-way data flow ---
 @dataclass
-class LogLine(Message):
+class ScriptOutput(Message):
+    """A message containing raw output from the script."""
     line: str
 
 @dataclass
-class ProgressUpdate(Message):
-    progress: int
-
-@dataclass
-class StatusUpdate(Message):
-    status: str
-
-@dataclass
-class PromptRequired(Message):
-    state: PromptState
-
-@dataclass
 class ProcessFinished(Message):
-    pass
+    """A message indicating the script has finished."""
+    return_code: int
 
 @dataclass
 class ProcessFailed(Message):
+    """A message indicating the script failed to start."""
     error: str
 
+# --- Conversation State Machine ---
+class ConversationState(Enum):
+    INIT = auto()
+    AWAITING_TARGET = auto()
+    AWAITING_PRE_INSPECT = auto()
+    AWAITING_POST_INSPECT = auto()
+    AWAITING_EXPORT_CB = auto()
+    AWAITING_EXPORT_DD = auto()
+    PROCESSING = auto()
+    DONE = auto()
+
+# --- Input Validation ---
+class YesNoValidator(Validator):
+    def validate(self, value: str) -> ValidationResult:
+        if value.lower() in ("y", "n", ""):
+            return self.success()
+        return self.failure("Only 'y' or 'n' allowed.")
+
+class TargetValidator(Validator):
+    def validate(self, value: str) -> ValidationResult:
+        if value.lower() in ("cb", "dd", "both"):
+            return self.success()
+        return self.failure("Only 'cb', 'dd', or 'both' allowed.")
+
+# --- UI Components ---
 
 def _resolve_python_interpreter(repo_root: Path) -> Path:
+    # (Implementation unchanged)
     candidates: list[Path] = []
     venv_env = os.environ.get("VIRTUAL_ENV")
     if venv_env:
@@ -76,7 +83,7 @@ def _resolve_python_interpreter(repo_root: Path) -> Path:
         candidates.append(p / ("Scripts" if os.name == "nt" else "bin") / "python")
     for dirname in (".venv", "venv"):
         p = repo_root / dirname
-        candidates.append(p / ("Scripts" if os.name == "nt" else "bin") / "python")
+        candidates.append(p / ("Scripts"if os.name == "nt" else "bin") / "python")
     candidates.append(Path(sys.executable))
     for cand in candidates:
         if cand.exists():
@@ -85,6 +92,7 @@ def _resolve_python_interpreter(repo_root: Path) -> Path:
 
 
 class ConfigScreen(Static):
+    # (Implementation unchanged)
     def __init__(self, on_select: Callable[[str], None]):
         super().__init__()
         self.on_select = on_select
@@ -103,51 +111,34 @@ class ConfigScreen(Static):
         self.on_select(str(label.renderable))
 
 
-class PromptWidget(Static):
-    def __init__(self, title: str, options: list[str], on_answer: Callable[[str], None]):
-        super().__init__()
-        self._title_text = title
-        self._options = options
-        self.on_answer = on_answer
-
-    def compose(self) -> ComposeResult:
-        yield Label(self._title_text, classes="title")
-        yield Rule()
-        for option in self._options:
-            yield Button(option, variant="primary", name=option.lower())
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.name:
-            self.on_answer(event.button.name)
-
-
 class RunDashboard(Static):
+    """The 'Conversation Manager' UI."""
     def __init__(self, config_filename: str):
         super().__init__()
         self.config_filename = config_filename
         self.python_path = _resolve_python_interpreter(REPO_ROOT)
         self.log_lines: list[str] = []
         self._proc: Optional[subprocess.Popen] = None
-        self._input_queue: Queue[str] = Queue()
+        self.convo_state: ConversationState = ConversationState.INIT
+        self.target: Optional[Literal["cb", "dd", "both"]] = None
 
     def compose(self) -> ComposeResult:
-        # Use a vertical layout: Controls on top, Logs on bottom
         with Vertical():
             with Vertical(id="top-pane"):
-                yield Label("Controls", classes="pane-title")
-                yield Static("Status: Starting...", id="status-display")
-                yield Container(id="prompt-container")
+                yield Label(" ", id="prompt-label")
+                yield Input(placeholder="...", id="main-input", disabled=True)
             with Vertical(id="bottom-pane"):
                 yield Label("Logs", classes="pane-title")
                 yield ProgressBar(id="progress-bar", total=100)
-                yield Static("Starting...", id="log-view")
+                yield Static("Initializing...", id="log-view")
 
     def on_mount(self) -> None:
         self.run_worker(self._run_cura_script, exclusive=True, thread=True)
+        self._next_convo_step()
 
     def _run_cura_script(self) -> None:
+        """'Dumb' Worker: Relays script output line-by-line."""
         try:
-            self.post_message(StatusUpdate("Initializing..."))
             config_base = Path(self.config_filename).stem
             cmd = [str(self.python_path), "-m", "src.cura", config_base, "run"]
             
@@ -159,109 +150,152 @@ class RunDashboard(Static):
                 cwd=str(REPO_ROOT),
                 text=True,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                bufsize=1
             )
-            self.post_message(StatusUpdate("Running..."))
-
+            
             for line in iter(self._proc.stdout.readline, ""):
-                self._process_line(line)
+                self.post_message(ScriptOutput(line))
             
             self._proc.wait()
-            if self._proc.returncode != 0:
-                self.post_message(ProcessFailed(f"Process exited with code {self._proc.returncode}"))
-            else:
-                self.post_message(ProcessFinished())
+            self.post_message(ProcessFinished(self._proc.returncode))
 
         except Exception as e:
             self.post_message(ProcessFailed(str(e)))
 
-    def _process_line(self, line: str):
-        self.post_message(LogLine(line.strip()))
-        
-        l = line.lower()
-        # Progress updates
-        if "initialized project-manager" in l: self.post_message(ProgressUpdate(10))
-        elif "--- running edits ---" in l: self.post_message(ProgressUpdate(30))
-        elif "editing completed" in l: self.post_message(ProgressUpdate(60))
-        elif "project processing completed" in l: self.post_message(ProgressUpdate(90))
-        elif "exported" in l: self.post_message(ProgressUpdate(100))
+    def _next_convo_step(self):
+        """Drives the conversation forward based on the current state."""
+        if self.convo_state == ConversationState.INIT:
+            self.convo_state = ConversationState.AWAITING_TARGET
+            self._activate_input(
+                "Step 1/5: What target(s) to inspect? (cb/dd/both)",
+                TargetValidator(),
+                placeholder="cb/dd/both"
+            )
+        elif self.convo_state == ConversationState.AWAITING_TARGET:
+            self.convo_state = ConversationState.AWAITING_PRE_INSPECT
+            self._activate_input(
+                "Step 2/5: Run initial inspections? (y/n, Enter for n)",
+                YesNoValidator(),
+                placeholder="n"
+            )
+        elif self.convo_state == ConversationState.AWAITING_PRE_INSPECT:
+            self.convo_state = ConversationState.AWAITING_POST_INSPECT
+            self._activate_input(
+                "Step 3/5: Run post-transformation inspections? (y/n, Enter for n)",
+                YesNoValidator(),
+                placeholder="n"
+            )
+        elif self.convo_state == ConversationState.AWAITING_POST_INSPECT:
+            if self.target in ("cb", "both"):
+                self.convo_state = ConversationState.AWAITING_EXPORT_CB
+                self._activate_input(
+                    "Step 4/5: Export codebook keys? (y/n, Enter for y)",
+                    YesNoValidator(),
+                    placeholder="y"
+                )
+            elif self.target == "dd": # Skip to the dd export question
+                self.convo_state = ConversationState.AWAITING_EXPORT_DD
+                self._next_convo_step()
+        elif self.convo_state == ConversationState.AWAITING_EXPORT_CB:
+            if self.target == "both":
+                self.convo_state = ConversationState.AWAITING_EXPORT_DD
+                self._next_convo_step()
+            else: # cb only, so we are done
+                self.convo_state = ConversationState.DONE
+                self._next_convo_step()
+        elif self.convo_state == ConversationState.AWAITING_EXPORT_DD:
+            if self.target in ("dd", "both"):
+                 self._activate_input(
+                    "Step 5/5: Export domain data? (y/n, Enter for y)",
+                    YesNoValidator(),
+                    placeholder="y"
+                )
+            self.convo_state = ConversationState.DONE
+        elif self.convo_state == ConversationState.DONE:
+            self.query_one("#prompt-label", Label).update("Run complete.")
 
-        # Prompt detection and handling
-        prompt_map = {
-            "What target(s) to inspect?": PromptState.SELECT_TARGET,
-            "Press 'y' and enter to run initial inspections": PromptState.PRE_INSPECT,
-            "Press 'y' and Enter to run post-transformation inspections": PromptState.POST_INSPECT,
-            "Would you like to export the codebook keys?": PromptState.EXPORT_CB,
-            "Would you like to export the domain data?": PromptState.EXPORT_DD,
-        }
-        for prompt_text, state in prompt_map.items():
-            if prompt_text in line:
-                self.post_message(PromptRequired(state))
-                self.post_message(StatusUpdate("Awaiting Input..."))
-                # Block and wait for input from the queue
-                answer = self._input_queue.get()
-                if self._proc and self._proc.stdin:
-                    self._proc.stdin.write(answer)
-                    self._proc.stdin.flush()
-                self.post_message(StatusUpdate("Running..."))
-                break
+
+    def _activate_input(self, label: str, validator: Validator, placeholder: str):
+        """Configures and enables the main input widget for the user."""
+        main_input = self.query_one("#main-input", Input)
+        self.query_one("#prompt-label", Label).update(label)
+        main_input.disabled = False
+        main_input.validators = [validator]
+        main_input.placeholder = placeholder
+        main_input.value = ""
+        main_input.focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handles the user pressing Enter in the input box."""
+        main_input = event.input
+        if not main_input.is_valid:
+            return
+
+        answer = main_input.value or main_input.placeholder
+        main_input.disabled = True
+        self.query_one("#prompt-label", Label).update("Processing...")
+
+        # Store the target for conditional questions
+        if self.convo_state == ConversationState.AWAITING_TARGET:
+            self.target = answer.lower()
+
+        # Send the answer to the script
+        if self._proc and self._proc.stdin:
+            try:
+                self._proc.stdin.write(answer + "\n")
+                self._proc.stdin.flush()
+            except (IOError, ValueError):
+                self.post_message(ProcessFailed("Failed to write to process."))
+        
+        self.convo_state = ConversationState.PROCESSING # Wait for script output
+
+    def on_script_output(self, message: ScriptOutput) -> None:
+        """Receives raw output, displays it, and checks if it's time for the next question."""
+        line = message.line.strip()
+        if not line:
+            return
+
+        self.log_lines.append(line)
+        self._update_log_view()
+        
+        # Update progress
+        l = line.lower()
+        if "initialized project-manager" in l: self.query_one("#progress-bar", ProgressBar).update(progress=10)
+        elif "--- running edits ---" in l: self.query_one("#progress-bar", ProgressBar).update(progress=30)
+        elif "editing completed" in l: self.query_one("#progress-bar", ProgressBar).update(progress=60)
+        elif "project processing completed" in l: self.query_one("#progress-bar", ProgressBar).update(progress=90)
+        elif "exported" in l: self.query_one("#progress-bar", ProgressBar).update(progress=100)
+
+        # If we were processing, check if the script is now asking the next question
+        if self.convo_state == ConversationState.PROCESSING:
+            prompt_triggers = {
+                "What target(s) to inspect?": ConversationState.AWAITING_TARGET,
+                "run initial inspections": ConversationState.AWAITING_PRE_INSPECT,
+                "run post-transformation inspections": ConversationState.AWAITING_POST_INSPECT,
+                "export the codebook keys?": ConversationState.AWAITING_EXPORT_CB,
+                "export the domain data?": ConversationState.AWAITING_EXPORT_DD,
+            }
+            for trigger, state in prompt_triggers.items():
+                if trigger in line:
+                    self.convo_state = state
+                    self._next_convo_step()
+                    break
+
+    def on_process_finished(self, message: ProcessFinished) -> None:
+        if message.return_code == 0:
+            self.query_one("#prompt-label", Label).update("Run complete.")
+        else:
+            self.query_one("#prompt-label", Label).update(f"[bold red]Run Failed (Code {message.return_code})[/]")
+        self.query_one("#main-input", Input).disabled = True
+
+    def on_process_failed(self, message: ProcessFailed) -> None:
+        self.query_one("#prompt-label", Label).update(f"[bold red]Error: {message.error}[/]")
+        self.query_one("#main-input", Input).disabled = True
 
     def _update_log_view(self):
         log_view = self.query_one("#log-view", Static)
         log_view.update("\n".join(self.log_lines[-200:]))
-
-    # --- Message Handlers ---
-    def on_log_line(self, message: LogLine) -> None:
-        self.log_lines.append(message.line)
-        self._update_log_view()
-
-    def on_progress_update(self, message: ProgressUpdate) -> None:
-        self.query_one("#progress-bar", ProgressBar).update(progress=message.progress)
-
-    def on_status_update(self, message: StatusUpdate) -> None:
-        self.query_one("#status-display", Static).update(f"Status: {message.status}")
-
-    def on_prompt_required(self, message: PromptRequired) -> None:
-        self._render_prompt(message.state)
-
-    def on_process_finished(self, message: ProcessFinished) -> None:
-        self.query_one("#progress-bar", ProgressBar).update(progress=100)
-        self.post_message(StatusUpdate("Finished"))
-        self._render_prompt(PromptState.DONE)
-
-    def on_process_failed(self, message: ProcessFailed) -> None:
-        self.log_lines.append(f"\n[bold red]ERROR: {message.error}[/]")
-        self._update_log_view()
-        self.post_message(StatusUpdate("Failed"))
-        self._render_prompt(PromptState.FAILED)
-
-    def _render_prompt(self, state: PromptState) -> None:
-        container = self.query_one("#prompt-container")
-        container.remove_children()
-        widget: Optional[Static] = None
-        prompt_map = {
-            PromptState.SELECT_TARGET: ("Step 1: Select Target", ["Codebook", "Domain Data", "Both"]),
-            PromptState.PRE_INSPECT: ("Step 2: Initial Inspections?", ["Yes", "No"]),
-            PromptState.POST_INSPECT: ("Step 3: Post-Transform Inspections?", ["Yes", "No"]),
-            PromptState.EXPORT_CB: ("Step 4: Export Codebook?", ["Yes", "No"]),
-            PromptState.EXPORT_DD: ("Step 5: Export Domain Data?", ["Yes", "No"]),
-        }
-        if state in prompt_map:
-            title, options = prompt_map[state]
-            widget = PromptWidget(title, options, self._answer_prompt)
-        elif state == PromptState.DONE:
-            widget = Label("Run complete. Press q to quit.")
-        elif state == PromptState.FAILED:
-            widget = Label("[bold red]Run failed.[/] Press q to quit.")
-
-        if widget:
-            container.mount(widget)
-
-    def _answer_prompt(self, answer: str) -> None:
-        self.query_one("#prompt-container").remove_children()
-        cli_answer_map = {"codebook": "cb", "domain data": "dd", "both": "both", "yes": "y", "no": "n"}
-        cli_answer = cli_answer_map.get(answer, answer) + "\n"
-        self._input_queue.put(cli_answer)
 
 
 class PyCuraTUI(App):
@@ -276,7 +310,7 @@ class PyCuraTUI(App):
         self.exit()
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield Header(show_clock=False)
         yield Container(id="app-body")
         yield Footer()
 

@@ -1,4 +1,4 @@
-/* A basic stylesheet for the pyCura TUI */
+/* A lean stylesheet for the pyCura TUI */
 
 /* General App Layout */
 #app-body {
@@ -39,13 +39,12 @@ RunDashboard {
     height: 100%;
 }
 
-/* Top pane for controls */
+/* Top pane for controls and status */
 #top-pane {
     height: auto;
-    min-height: 8;
+    min-height: 5;
     border: round $primary;
-    padding: 1;
-    margin-bottom: 1;
+    padding: 0 1;
 }
 
 /* Bottom pane for logs */
@@ -53,6 +52,7 @@ RunDashboard {
     height: 1fr; /* Takes up remaining space */
     border: round $primary;
     padding: 1;
+    margin-top: 1;
 }
 
 .pane-title {
@@ -61,28 +61,22 @@ RunDashboard {
     margin-bottom: 1;
 }
 
-#status-display {
+#prompt-label {
+    margin-top: 1;
     margin-bottom: 1;
     text-style: bold;
 }
 
-/* Prompt Widget */
-#prompt-container {
-    align: center top;
-    height: 100%;
+#main-input {
+    width: 100%;
 }
 
-PromptWidget {
-    align: center top;
+#main-input.--valid {
+    border: tall $success;
 }
 
-PromptWidget .title {
-    margin-bottom: 1;
-}
-
-PromptWidget Button {
-    width: 80%;
-    margin-top: 1;
+#main-input.--invalid {
+    border: tall $error;
 }
 
 /* Log View */
