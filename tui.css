@@ -1,0 +1,98 @@
+/* A basic stylesheet for the pyCura TUI */
+
+/* General App Layout */
+#app-body {
+    layout: vertical;
+    overflow: hidden;
+}
+
+/* Configuration Screen */
+ConfigScreen {
+    align: center middle;
+}
+
+ConfigScreen .title {
+    margin-bottom: 1;
+}
+
+ConfigScreen .hint {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+ConfigScreen .help {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#config-list {
+    width: 80%;
+    height: auto;
+    max-height: 15;
+    border: tall $primary;
+    margin-top: 1;
+}
+
+/* Main Run Dashboard */
+RunDashboard {
+    layout: vertical;
+    height: 100%;
+}
+
+/* Top pane for controls */
+#top-pane {
+    height: auto;
+    min-height: 8;
+    border: round $primary;
+    padding: 1;
+    margin-bottom: 1;
+}
+
+/* Bottom pane for logs */
+#bottom-pane {
+    height: 1fr; /* Takes up remaining space */
+    border: round $primary;
+    padding: 1;
+}
+
+.pane-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#status-display {
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+/* Prompt Widget */
+#prompt-container {
+    align: center top;
+    height: 100%;
+}
+
+PromptWidget {
+    align: center top;
+}
+
+PromptWidget .title {
+    margin-bottom: 1;
+}
+
+PromptWidget Button {
+    width: 80%;
+    margin-top: 1;
+}
+
+/* Log View */
+#log-view {
+    height: 100%;
+    overflow: auto;
+    border: tall $background-lighten-2;
+    padding: 1;
+}
+
+#progress-bar {
+    margin-bottom: 1;
+}
