@@ -192,7 +192,7 @@ class ProcessDashboard(Static):
     def _update_log_view(self):
         self.query_one("#log-view", Static).update("\n".join(self.log_lines[-200:]))
 
-    def _next_convo_step():
+    def _next_convo_step(self):
         raise NotImplementedError
     def _handle_answer(self, answer: str):
         raise NotImplementedError
@@ -201,47 +201,57 @@ class ProcessDashboard(Static):
 
 class RunDashboard(ProcessDashboard):
     """Conversation manager for the 'run' command."""
+    class ConversationState(Enum):
+        INIT = auto()
+        AWAITING_TARGET = auto()
+        AWAITING_PRE_INSPECT = auto()
+        AWAITING_POST_INSPECT = auto()
+        AWAITING_EXPORT_CB = auto()
+        AWAITING_EXPORT_DD = auto()
+        PROCESSING = auto()
+        DONE = auto()
+
     def __init__(self, config_filename: str):
         super().__init__(config_filename, "run")
-        self.convo_state = ConversationState.INIT
+        self.convo_state = self.ConversationState.INIT
         self.target: Optional[Literal["cb", "dd", "both"]] = None
 
     def _next_convo_step(self):
         # (Implementation from previous version, slightly adapted)
-        if self.convo_state == ConversationState.INIT:
-            self.convo_state = ConversationState.AWAITING_TARGET
+        if self.convo_state == self.ConversationState.INIT:
+            self.convo_state = self.ConversationState.AWAITING_TARGET
             self._activate_input("Step 1/5: What target(s) to inspect? (cb/dd/both)", TargetValidator(), "cb")
-        elif self.convo_state == ConversationState.AWAITING_TARGET:
-            self.convo_state = ConversationState.AWAITING_PRE_INSPECT
+        elif self.convo_state == self.ConversationState.AWAITING_TARGET:
+            self.convo_state = self.ConversationState.AWAITING_PRE_INSPECT
             self._activate_input("Step 2/5: Run initial inspections? (y/n, Enter for n)", YesNoValidator(), "n")
-        elif self.convo_state == ConversationState.AWAITING_PRE_INSPECT:
-            self.convo_state = ConversationState.AWAITING_POST_INSPECT
+        elif self.convo_state == self.ConversationState.AWAITING_PRE_INSPECT:
+            self.convo_state = self.ConversationState.AWAITING_POST_INSPECT
             self._activate_input("Step 3/5: Run post-transformation inspections? (y/n, Enter for n)", YesNoValidator(), "n")
-        elif self.convo_state == ConversationState.AWAITING_POST_INSPECT:
+        elif self.convo_state == self.ConversationState.AWAITING_POST_INSPECT:
             if self.target in ("cb", "both"):
-                self.convo_state = ConversationState.AWAITING_EXPORT_CB
+                self.convo_state = self.ConversationState.AWAITING_EXPORT_CB
                 self._activate_input("Step 4/5: Export codebook keys? (y/n, Enter for y)", YesNoValidator(), "y")
             elif self.target == "dd":
-                self.convo_state = ConversationState.AWAITING_EXPORT_DD
+                self.convo_state = self.ConversationState.AWAITING_EXPORT_DD
                 self._next_convo_step()
-        elif self.convo_state == ConversationState.AWAITING_EXPORT_CB:
+        elif self.convo_state == self.ConversationState.AWAITING_EXPORT_CB:
             if self.target == "both":
-                self.convo_state = ConversationState.AWAITING_EXPORT_DD
+                self.convo_state = self.ConversationState.AWAITING_EXPORT_DD
                 self._next_convo_step()
             else:
-                self.convo_state = ConversationState.DONE
-        elif self.convo_state == ConversationState.AWAITING_EXPORT_DD:
+                self.convo_state = self.ConversationState.DONE
+        elif self.convo_state == self.ConversationState.AWAITING_EXPORT_DD:
             if self.target in ("dd", "both"):
                 self._activate_input("Step 5/5: Export domain data? (y/n, Enter for y)", YesNoValidator(), "y")
-            self.convo_state = ConversationState.DONE
+            self.convo_state = self.ConversationState.DONE
 
     def _handle_answer(self, answer: str):
-        if self.convo_state == ConversationState.AWAITING_TARGET:
+        if self.convo_state == self.ConversationState.AWAITING_TARGET:
             self.target = answer.lower()
         if self._proc and self._proc.stdin:
             self._proc.stdin.write(answer + "\n")
             self._proc.stdin.flush()
-        self.convo_state = ConversationState.PROCESSING
+        self.convo_state = self.ConversationState.PROCESSING
 
     def _process_output_line(self, line: str):
         # Progress bar logic
@@ -254,13 +264,13 @@ class RunDashboard(ProcessDashboard):
         elif "exported" in l: progress_bar.update(progress=100)
 
         # Trigger for next conversation step
-        if self.convo_state == ConversationState.PROCESSING:
+        if self.convo_state == self.ConversationState.PROCESSING:
             prompt_triggers = {
-                "What target(s) to inspect?": ConversationState.AWAITING_TARGET,
-                "run initial inspections": ConversationState.AWAITING_PRE_INSPECT,
-                "run post-transformation inspections": ConversationState.AWAITING_POST_INSPECT,
-                "export the codebook keys?": ConversationState.AWAITING_EXPORT_CB,
-                "export the domain data?": ConversationState.AWAITING_EXPORT_DD,
+                "What target(s) to inspect?": self.ConversationState.AWAITING_TARGET,
+                "run initial inspections": self.ConversationState.AWAITING_PRE_INSPECT,
+                "run post-transformation inspections": self.ConversationState.AWAITING_POST_INSPECT,
+                "export the codebook keys?": self.ConversationState.AWAITING_EXPORT_CB,
+                "export the domain data?": self.ConversationState.AWAITING_EXPORT_DD,
             }
             for trigger, state in prompt_triggers.items():
                 if trigger in line:
