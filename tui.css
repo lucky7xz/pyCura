@@ -11,18 +11,8 @@ ConfigScreen {
     align: center middle;
 }
 
-ConfigScreen .title {
+ConfigScreen .title, CommandScreen .title {
     margin-bottom: 1;
-}
-
-ConfigScreen .hint {
-    color: $text-muted;
-    margin-top: 1;
-}
-
-ConfigScreen .help {
-    color: $text-muted;
-    margin-top: 1;
 }
 
 #config-list {
@@ -33,8 +23,18 @@ ConfigScreen .help {
     margin-top: 1;
 }
 
+/* Command Screen */
+CommandScreen {
+    align: center middle;
+}
+
+CommandScreen Button {
+    width: 50%;
+    margin-top: 1;
+}
+
 /* Main Run Dashboard */
-RunDashboard {
+ProcessDashboard {
     layout: vertical;
     height: 100%;
 }
