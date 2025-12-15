@@ -11,7 +11,7 @@
 _**pyCura**_ is a **configuration-driven 📝, extensible 🧩 data curation framework** ⚙️ for reproducible and reliable pre-processing of statistical datasets. pyCura streamlines repetitive data preparation tasks through automated pipelines, enabling consistent, auditable transformations while relying entirely on free and open data formats to ensure true interoperability. 🦅
 
 > [!IMPORTANT]
-> pyCura is currently in alpha development. Not all features are currently available, and core functionality is considered ```unstable``` - meaning it can change at any time, without prior notice. As such, the software is not yet recommended for production use (unless you know what you're doing). 
+> pyCura is currently in alpha development. Not all features are currently available, and core functionality is considered ```unstable``` - meaning it can change at any time, without prior notice. As such, the software is not yet recommended for production use. 
 
 
 <h2>✨ Why pyCura? </h2>
